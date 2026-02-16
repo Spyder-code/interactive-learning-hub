@@ -7,7 +7,12 @@ import { ChevronLeft, ChevronRight, Monitor } from "lucide-react";
 
 const Index = () => {
   const [current, setCurrent] = useState(0);
+  const [quizResults, setQuizResults] = useState<Record<string, boolean>>({});
   const slide = slides[current];
+
+  const handleQuizAnswer = useCallback((slideId: number, questionIndex: number, isCorrect: boolean) => {
+    setQuizResults((prev) => ({ ...prev, [`${slideId}-${questionIndex}`]: isCorrect }));
+  }, []);
 
   const goNext = useCallback(() => {
     setCurrent((c) => Math.min(c + 1, slides.length - 1));
@@ -86,7 +91,12 @@ const Index = () => {
           key={current}
           className="bg-card rounded-2xl border border-border p-6 md:p-10 shadow-sm min-h-[400px]"
         >
-          <SlideContent slide={slide} />
+          <SlideContent
+            slide={slide}
+            onQuizAnswer={handleQuizAnswer}
+            quizResults={quizResults}
+            isLastSlide={current === slides.length - 1}
+          />
         </div>
       </main>
 

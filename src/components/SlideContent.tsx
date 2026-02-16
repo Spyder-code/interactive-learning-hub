@@ -1,9 +1,13 @@
 import type { Slide } from "@/data/slides";
 import QuizSlide from "./QuizSlide";
-import { CheckSquare, Square, Clock, AlertTriangle, BookOpen } from "lucide-react";
+import ScoreSummary from "./ScoreSummary";
+import { CheckSquare, Square, Clock, AlertTriangle, BookOpen, Trophy } from "lucide-react";
 
 interface SlideContentProps {
   slide: Slide;
+  onQuizAnswer?: (slideId: number, questionIndex: number, isCorrect: boolean) => void;
+  quizResults?: Record<string, boolean>;
+  isLastSlide?: boolean;
 }
 
 const typeConfig = {
@@ -13,7 +17,7 @@ const typeConfig = {
   challenge: { color: "bg-warning", icon: AlertTriangle, label: "Challenge" },
 };
 
-const SlideContent = ({ slide }: SlideContentProps) => {
+const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideContentProps) => {
   const config = typeConfig[slide.type];
   const Icon = config.icon;
 
@@ -92,7 +96,18 @@ const SlideContent = ({ slide }: SlideContentProps) => {
       )}
 
       {/* Quiz */}
-      {slide.quiz && <QuizSlide questions={slide.quiz} />}
+      {slide.quiz && <QuizSlide questions={slide.quiz} slideId={slide.id} onAnswer={onQuizAnswer} />}
+
+      {/* Score Summary on last slide */}
+      {isLastSlide && quizResults && (
+        <div className="mt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy size={20} className="text-warning" />
+            <h3 className="text-xl font-extrabold text-foreground">Skor Akhir Kamu</h3>
+          </div>
+          <ScoreSummary quizResults={quizResults} />
+        </div>
+      )}
 
       {/* Note */}
       {slide.note && (

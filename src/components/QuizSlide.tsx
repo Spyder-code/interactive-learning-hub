@@ -4,9 +4,11 @@ import { CheckCircle, XCircle } from "lucide-react";
 
 interface QuizSlideProps {
   questions: QuizQuestion[];
+  slideId: number;
+  onAnswer?: (slideId: number, questionIndex: number, isCorrect: boolean) => void;
 }
 
-const QuizSlide = ({ questions }: QuizSlideProps) => {
+const QuizSlide = ({ questions, slideId, onAnswer }: QuizSlideProps) => {
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
 
@@ -14,6 +16,7 @@ const QuizSlide = ({ questions }: QuizSlideProps) => {
     if (revealed[qIndex]) return;
     setAnswers((prev) => ({ ...prev, [qIndex]: label }));
     setRevealed((prev) => ({ ...prev, [qIndex]: true }));
+    onAnswer?.(slideId, qIndex, !!correct);
   };
 
   return (
@@ -69,7 +72,7 @@ const QuizSlide = ({ questions }: QuizSlideProps) => {
               );
             })}
           </div>
-          {isRevealed(qIndex) && q.explanation && (
+          {revealed[qIndex] && q.explanation && (
             <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
               <p className="text-sm text-primary font-medium">
                 💡 {q.explanation}
@@ -80,10 +83,6 @@ const QuizSlide = ({ questions }: QuizSlideProps) => {
       ))}
     </div>
   );
-
-  function isRevealed(qIndex: number) {
-    return revealed[qIndex];
-  }
 };
 
 export default QuizSlide;
