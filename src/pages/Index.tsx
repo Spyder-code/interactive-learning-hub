@@ -41,6 +41,10 @@ const Index = () => {
     loadMeetingHistory,
     setMeetingStartTime,
     getMeetingStartTime,
+    clearAll,
+    isLoading,
+    saveUpload,
+    removeUpload,
   } = useQuizStoreWithAPI(meetingId || "");
   const [quizResults, setQuizResults] = useState<Record<string, boolean>>({});
   const [warningMessage, setWarningMessage] = useState<string>("");
@@ -52,6 +56,7 @@ const Index = () => {
   const slide = slides[current];
 
   const handleLogout = () => {
+    clearAll(); // Clear store sebelum logout
     authAPI.logout();
     toast({
       title: "Logout Berhasil",
@@ -62,7 +67,7 @@ const Index = () => {
 
   // Initialize slide 0 sebagai accessible saat pertama kali load
   useEffect(() => {
-    if (meetingId) {
+    if (meetingId && !isLoading) {
       updateMaxSlideReached(0);
 
       // Load history jika meeting sudah pernah diselesaikan
@@ -76,24 +81,20 @@ const Index = () => {
             durationMinutes: history.durationMinutes,
           });
         }
-      } else {
-        // Jika meeting belum pernah diselesaikan, mulai timer
-        setMeetingStartTime(meetingId);
       }
+      // Note: setMeetingStartTime sudah di-handle di useQuizStoreWithAPI
+      // dari data backend, jadi tidak perlu di-set lagi di sini
     }
-  }, [
-    meetingId,
-    updateMaxSlideReached,
-    isMeetingCompleted,
-    loadMeetingHistory,
-    getMeetingHistory,
-    setMeetingStartTime,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingId, isLoading]);
 
-  // Load quiz results dari store saat component mount
+  // Load quiz results dari store saat component mount DAN setelah data di-load dari backend
   useEffect(() => {
-    setQuizResults(getQuizResults());
-  }, [getQuizResults]);
+    if (!isLoading) {
+      setQuizResults(getQuizResults());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
 
   const handleQuizAnswer = useCallback(
     (slideId: number, questionIndex: number, isCorrect: boolean) => {
@@ -278,105 +279,124 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Progress */}
-      <div className="max-w-5xl mx-auto w-full px-4 pt-4">
-        <SlideProgress current={current} total={slides.length} />
-      </div>
-
-      {/* Slide Selector (thumbnails) */}
-      <div className="max-w-5xl mx-auto w-full px-4 pt-4">
-        <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none p-2">
-          {slides.map((s, i) => {
-            const isAccessible = meetingId
-              ? canAccessSlide(meetingId, i)
-              : i === 0;
-            const isClickable = isAccessible || i === 0;
-
-            return (
-              <button
-                key={s.id}
-                onClick={() => {
-                  if (isClickable) {
-                    setCurrent(i);
-                  } else {
-                    setWarningMessage(
-                      "⚠️ Anda harus menyelesaikan slide sebelumnya terlebih dahulu!",
-                    );
-                    setTimeout(() => setWarningMessage(""), 3000);
-                  }
-                }}
-                disabled={!isClickable}
-                className={`flex-shrink-0 w-10 h-10 rounded-lg text-xs font-bold transition-all duration-200 ${
-                  i === current
-                    ? "bg-primary text-primary-foreground scale-110 shadow-lg"
-                    : i < current
-                      ? "bg-success/20 text-success"
-                      : isAccessible
-                        ? "bg-secondary text-muted-foreground hover:bg-secondary/80"
-                        : "bg-secondary/50 text-muted-foreground/30 cursor-not-allowed"
-                }`}
-              >
-                {s.icon}
-              </button>
-            );
-          })}
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-sm text-muted-foreground">
+              Memuat data pertemuan...
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6">
-        {/* Warning Message */}
-        {warningMessage && (
-          <div className="mb-4 slide-enter">
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-warning/10 border border-warning/30 text-warning">
-              <FiAlertCircle size={20} className="flex-shrink-0" />
-              <p className="text-sm font-semibold">{warningMessage}</p>
+      {/* Main Content - Hidden when loading */}
+      {!isLoading && (
+        <>
+          {/* Progress */}
+          <div className="max-w-5xl mx-auto w-full px-4 pt-4">
+            <SlideProgress current={current} total={slides.length} />
+          </div>
+
+          {/* Slide Selector (thumbnails) */}
+          <div className="max-w-5xl mx-auto w-full px-4 pt-4">
+            <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none p-2">
+              {slides.map((s, i) => {
+                const isAccessible = meetingId
+                  ? canAccessSlide(meetingId, i)
+                  : i === 0;
+                const isClickable = isAccessible || i === 0;
+
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      if (isClickable) {
+                        setCurrent(i);
+                      } else {
+                        setWarningMessage(
+                          "⚠️ Anda harus menyelesaikan slide sebelumnya terlebih dahulu!",
+                        );
+                        setTimeout(() => setWarningMessage(""), 3000);
+                      }
+                    }}
+                    disabled={!isClickable}
+                    className={`flex-shrink-0 w-10 h-10 rounded-lg text-xs font-bold transition-all duration-200 ${
+                      i === current
+                        ? "bg-primary text-primary-foreground scale-110 shadow-lg"
+                        : i < current
+                          ? "bg-success/20 text-success"
+                          : isAccessible
+                            ? "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                            : "bg-secondary/50 text-muted-foreground/30 cursor-not-allowed"
+                    }`}
+                  >
+                    {s.icon}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
 
-        <div
-          key={current}
-          className="bg-card rounded-2xl border border-border p-6 md:p-10 shadow-sm min-h-[400px]"
-        >
-          <SlideContent
-            slide={slide}
-            onQuizAnswer={handleQuizAnswer}
-            quizResults={quizResults}
-            isLastSlide={current === slides.length - 1}
-          />
-        </div>
-      </main>
+          {/* Main Content */}
+          <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6">
+            {/* Warning Message */}
+            {warningMessage && (
+              <div className="mb-4 slide-enter">
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-warning/10 border border-warning/30 text-warning">
+                  <FiAlertCircle size={20} className="flex-shrink-0" />
+                  <p className="text-sm font-semibold">{warningMessage}</p>
+                </div>
+              </div>
+            )}
 
-      {/* Navigation */}
-      <footer className="border-t border-border bg-card sticky bottom-0">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <button
-            onClick={goPrev}
-            disabled={current === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <FiChevronLeft size={18} />
-            Sebelumnya
-          </button>
+            <div
+              key={current}
+              className="bg-card rounded-2xl border border-border p-6 md:p-10 shadow-sm min-h-[400px]"
+            >
+              <SlideContent
+                slide={slide}
+                onQuizAnswer={handleQuizAnswer}
+                quizResults={quizResults}
+                isLastSlide={current === slides.length - 1}
+                onSaveUpload={saveUpload}
+                onRemoveUpload={removeUpload}
+              />
+            </div>
+          </main>
 
-          <span className="text-sm font-bold text-muted-foreground">
-            {current + 1} / {slides.length}
-          </span>
+          {/* Navigation */}
+          <footer className="border-t border-border bg-card sticky bottom-0">
+            <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+              <button
+                onClick={goPrev}
+                disabled={current === 0}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <FiChevronLeft size={18} />
+                Sebelumnya
+              </button>
 
-          <button
-            onClick={goNext}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 bg-primary text-primary-foreground hover:opacity-90"
-          >
-            {current === slides.length - 1
-              ? meetingId && isMeetingCompleted(meetingId)
-                ? "Kembali ke Beranda"
-                : "Selesai & Simpan"
-              : "Selanjutnya"}
-            <FiChevronRight size={18} />
-          </button>
-        </div>
-      </footer>
+              <span className="text-sm font-bold text-muted-foreground">
+                {current + 1} / {slides.length}
+              </span>
+
+              <button
+                onClick={goNext}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 bg-primary text-primary-foreground hover:opacity-90"
+              >
+                {current === slides.length - 1
+                  ? meetingId && isMeetingCompleted(meetingId)
+                    ? "Kembali ke Beranda"
+                    : "Selesai & Simpan"
+                  : "Selanjutnya"}
+                <FiChevronRight size={18} />
+              </button>
+            </div>
+          </footer>
+        </>
+      )}
     </div>
   );
 };

@@ -17,6 +17,7 @@ function initializeDatabase() {
       nim TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
       name TEXT NOT NULL,
+      role TEXT DEFAULT 'student',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -68,11 +69,19 @@ function initializeDatabase() {
       file_name TEXT NOT NULL,
       file_size INTEGER NOT NULL,
       file_type TEXT NOT NULL,
+      file_path TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id),
       UNIQUE(user_meeting_id, slide_id, task_index)
     )
   `);
+
+  // Add file_path column if it doesn't exist (for existing databases)
+  try {
+    db.exec(`ALTER TABLE task_uploads ADD COLUMN file_path TEXT`);
+  } catch (error) {
+    // Column already exists, ignore error
+  }
 
   // Tabel slide progress (menyimpan progress per slide)
   db.exec(`
@@ -101,24 +110,45 @@ function insertDefaultUsers() {
   const hashedPassword = bcrypt.hashSync("12345", 10);
 
   const users = [
-    { nim: "2301010101", name: "Ahmad Pratama", password: hashedPassword },
-    { nim: "2301010102", name: "Siti Nurhaliza", password: hashedPassword },
-    { nim: "2301010103", name: "Budi Santoso", password: hashedPassword },
+    {
+      nim: "2301010101",
+      name: "Ahmad Pratama",
+      password: hashedPassword,
+      role: "student",
+    },
+    {
+      nim: "2301010102",
+      name: "Siti Nurhaliza",
+      password: hashedPassword,
+      role: "student",
+    },
+    {
+      nim: "2301010103",
+      name: "Budi Santoso",
+      password: hashedPassword,
+      role: "student",
+    },
+    {
+      nim: "TEACHER001",
+      name: "Dr. Budi Wijaya",
+      password: hashedPassword,
+      role: "teacher",
+    },
   ];
 
   const insert = db.prepare(
-    "INSERT INTO users (nim, name, password) VALUES (?, ?, ?)",
+    "INSERT INTO users (nim, name, password, role) VALUES (?, ?, ?, ?)",
   );
 
   const insertMany = db.transaction((users) => {
     for (const user of users) {
-      insert.run(user.nim, user.name, user.password);
+      insert.run(user.nim, user.name, user.password, user.role);
     }
   });
 
   insertMany(users);
   console.log(
-    "✅ Default users created (NIM: 2301010101-2301010103, Password: 12345)",
+    "✅ Default users created:\n   Students - NIM: 2301010101-2301010103\n   Teacher  - NIM: TEACHER001\n   Password: 12345",
   );
 }
 

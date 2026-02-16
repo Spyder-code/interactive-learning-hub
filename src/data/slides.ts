@@ -1,16 +1,4 @@
 import React from "react";
-import {
-  FiCheckCircle,
-  FiEdit,
-  FiSearch,
-  FiZap,
-  FiFileText,
-  FiEye,
-  FiCpu,
-  FiAward,
-  FiMessageCircle,
-  FiTarget,
-} from "react-icons/fi";
 
 export type SlideType = "content" | "quiz" | "task" | "challenge";
 

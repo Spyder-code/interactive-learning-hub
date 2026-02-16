@@ -3,7 +3,7 @@ const API_BASE_URL =
 
 // Helper function untuk mengambil auth token
 function getAuthToken() {
-  return localStorage.getItem("auth_token");
+  return localStorage.getItem("token") || localStorage.getItem("auth_token");
 }
 
 // Helper function untuk mengambil auth headers
@@ -30,6 +30,9 @@ export const authAPI = {
     }
 
     const data = await response.json();
+    // Clear quiz storage sebelum login untuk menghapus data user sebelumnya
+    localStorage.removeItem("quiz-storage");
+    localStorage.setItem("token", data.token);
     localStorage.setItem("auth_token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     return data;
@@ -63,8 +66,11 @@ export const authAPI = {
   },
 
   logout() {
+    localStorage.removeItem("token");
     localStorage.removeItem("auth_token");
     localStorage.removeItem("user");
+    // Clear quiz storage untuk menghapus data mahasiswa sebelumnya
+    localStorage.removeItem("quiz-storage");
   },
 
   getCurrentUser() {
@@ -86,6 +92,18 @@ export const meetingAPI = {
 
     if (!response.ok) {
       throw new Error("Gagal mengambil data meeting");
+    }
+
+    return response.json();
+  },
+
+  async getAllMeetingsStatus() {
+    const response = await fetch(`${API_BASE_URL}/meetings/all-status`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil status meeting");
     }
 
     return response.json();
@@ -134,24 +152,47 @@ export const meetingAPI = {
     meetingId: string,
     slideId: number,
     taskIndex: number,
-    fileName: string,
-    fileSize: number,
-    fileType: string,
+    file: File,
   ) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("slideId", slideId.toString());
+    formData.append("taskIndex", taskIndex.toString());
+
+    const token = localStorage.getItem("token");
     const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}/task`, {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        // Don't set Content-Type header - browser will set it with boundary
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal menyimpan task");
+    }
+
+    return response.json();
+  },
+
+  async removeTaskUpload(
+    meetingId: string,
+    slideId: number,
+    taskIndex: number,
+  ) {
+    const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}/task`, {
+      method: "DELETE",
       headers: getAuthHeaders(),
       body: JSON.stringify({
         slideId,
         taskIndex,
-        fileName,
-        fileSize,
-        fileType,
       }),
     });
 
     if (!response.ok) {
-      throw new Error("Gagal menyimpan task");
+      throw new Error("Gagal menghapus task");
     }
 
     return response.json();
@@ -202,6 +243,85 @@ export const meetingAPI = {
 
     if (!response.ok) {
       throw new Error("Gagal menyelesaikan meeting");
+    }
+
+    return response.json();
+  },
+};
+
+// Teacher API
+export const teacherAPI = {
+  async getStudents() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/summary`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil data mahasiswa");
+    }
+
+    return response.json();
+  },
+
+  async getStatistics() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/statistics`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil statistik");
+    }
+
+    return response.json();
+  },
+
+  async getStudentMeetings(studentId: number) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/${studentId}/meetings`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil data meeting mahasiswa");
+    }
+
+    return response.json();
+  },
+
+  async getStudentMeetingDetail(studentId: number, meetingId: string) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/${studentId}/meetings/${meetingId}`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil detail meeting");
+    }
+
+    return response.json();
+  },
+
+  async getMeetingReports(meetingId?: string) {
+    const url = meetingId
+      ? `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/meetings?meetingId=${meetingId}`
+      : `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/meetings`;
+
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil laporan meeting");
     }
 
     return response.json();

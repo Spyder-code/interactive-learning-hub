@@ -23,6 +23,12 @@ interface SlideContentProps {
   ) => void;
   quizResults?: Record<string, boolean>;
   isLastSlide?: boolean;
+  onSaveUpload?: (
+    slideId: number,
+    taskIndex: number,
+    file: File,
+  ) => Promise<void>;
+  onRemoveUpload?: (slideId: number, taskIndex: number) => Promise<void>;
 }
 
 const typeConfig = {
@@ -37,13 +43,16 @@ const SlideContent = ({
   onQuizAnswer,
   quizResults,
   isLastSlide,
+  onSaveUpload,
+  onRemoveUpload,
 }: SlideContentProps) => {
   const config = typeConfig[slide.type];
   const Icon = config.icon;
-  const { saveUpload, getUpload, removeUpload } = useQuizStore();
+  const { getUpload } = useQuizStore();
   const [uploadedFiles, setUploadedFiles] = useState<
     Record<number, { name: string; size: number } | null>
   >({});
+  const [isUploading, setIsUploading] = useState<Record<number, boolean>>({});
 
   // Load uploaded files from store on mount or slide change
   useEffect(() => {
@@ -59,24 +68,72 @@ const SlideContent = ({
     }
   }, [slide.id, slide.tasks, slide.requireUpload, getUpload]);
 
-  const handleFileUpload = (taskIndex: number, file: File | null) => {
+  const handleFileUpload = async (taskIndex: number, file: File | null) => {
     if (file) {
-      // Save to store
-      saveUpload(slide.id, taskIndex, file.name, file.size, file.type);
-      // Update local state for immediate UI feedback
-      setUploadedFiles((prev) => ({
-        ...prev,
-        [taskIndex]: { name: file.name, size: file.size },
-      }));
+      // Validate file type
+      const allowedTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        alert(
+          "Invalid file type. Only images and office files (Word, Excel, PowerPoint) are allowed.",
+        );
+        return;
+      }
+
+      // Validate file size (10MB max)
+      if (file.size > 10 * 1024 * 1024) {
+        alert("File size exceeds 10MB limit.");
+        return;
+      }
+
+      setIsUploading((prev) => ({ ...prev, [taskIndex]: true }));
+      try {
+        // Save to backend
+        if (onSaveUpload) {
+          await onSaveUpload(slide.id, taskIndex, file);
+        }
+        // Update local state for immediate UI feedback
+        setUploadedFiles((prev) => ({
+          ...prev,
+          [taskIndex]: { name: file.name, size: file.size },
+        }));
+      } catch (error) {
+        console.error("Failed to upload file:", error);
+        alert("Failed to upload file. Please try again.");
+      } finally {
+        setIsUploading((prev) => ({ ...prev, [taskIndex]: false }));
+      }
     } else {
-      // Remove from store
-      removeUpload(slide.id, taskIndex);
-      // Update local state
-      setUploadedFiles((prev) => {
-        const newFiles = { ...prev };
-        delete newFiles[taskIndex];
-        return newFiles;
-      });
+      setIsUploading((prev) => ({ ...prev, [taskIndex]: true }));
+      try {
+        // Remove from backend
+        if (onRemoveUpload) {
+          await onRemoveUpload(slide.id, taskIndex);
+        }
+        // Update local state
+        setUploadedFiles((prev) => {
+          const newFiles = { ...prev };
+          delete newFiles[taskIndex];
+          return newFiles;
+        });
+      } catch (error) {
+        console.error("Failed to remove file:", error);
+        alert("Failed to remove file. Please try again.");
+      } finally {
+        setIsUploading((prev) => ({ ...prev, [taskIndex]: false }));
+      }
     }
   };
 
@@ -183,14 +240,20 @@ const SlideContent = ({
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       type="file"
-                      accept="image/*,.pdf,.doc,.docx"
+                      accept="image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                       onChange={(e) =>
                         handleFileUpload(i, e.target.files?.[0] || null)
                       }
                       className="hidden"
+                      disabled={isUploading[i]}
                     />
                     <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors text-sm font-medium">
-                      {uploadedFiles[i] ? (
+                      {isUploading[i] ? (
+                        <>
+                          <FiUpload size={16} className="animate-pulse" />
+                          <span>Uploading...</span>
+                        </>
+                      ) : uploadedFiles[i] ? (
                         <>
                           <FiCheck size={16} />
                           <span className="truncate max-w-[200px]">

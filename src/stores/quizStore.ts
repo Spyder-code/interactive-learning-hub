@@ -101,9 +101,11 @@ interface QuizState {
   // Clear data meeting saat ini (untuk memulai ulang)
   clearCurrentMeeting: (meetingId: string) => void;
   // Set waktu mulai mengerjakan meeting
-  setMeetingStartTime: (meetingId: string) => void;
+  setMeetingStartTime: (meetingId: string, timestamp?: number) => void;
   // Get waktu mulai mengerjakan meeting
   getMeetingStartTime: (meetingId: string) => number | undefined;
+  // Clear all data (untuk logout)
+  clearAll: () => void;
 }
 
 export const useQuizStore = create<QuizState>()(
@@ -330,13 +332,13 @@ export const useQuizStore = create<QuizState>()(
         });
       },
 
-      setMeetingStartTime: (meetingId) => {
-        // Only set if not already set (untuk meeting yang belum dimulai)
+      // Implementation
+      setMeetingStartTime: (meetingId, timestamp) => {
         if (!get().meetingStartTimes[meetingId]) {
           set((state) => ({
             meetingStartTimes: {
               ...state.meetingStartTimes,
-              [meetingId]: Date.now(),
+              [meetingId]: timestamp || Date.now(), // Use provided timestamp or fallback
             },
           }));
         }
@@ -344,6 +346,16 @@ export const useQuizStore = create<QuizState>()(
 
       getMeetingStartTime: (meetingId) => {
         return get().meetingStartTimes[meetingId];
+      },
+
+      clearAll: () => {
+        set({
+          answers: {},
+          uploads: {},
+          maxSlideReached: {},
+          meetingHistory: {},
+          meetingStartTimes: {},
+        });
       },
     }),
     {

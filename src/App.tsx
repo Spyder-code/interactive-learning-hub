@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import MeetingSelect from "./pages/MeetingSelect";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import TeacherDashboard from "./pages/TeacherDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -20,9 +21,17 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
+            path="/teacher"
+            element={
+              <ProtectedRoute requiredRole="teacher">
+                <TeacherDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="student">
                 <MeetingSelect />
               </ProtectedRoute>
             }
@@ -30,7 +39,7 @@ const App = () => (
           <Route
             path="/:meetingId"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="student">
                 <Index />
               </ProtectedRoute>
             }

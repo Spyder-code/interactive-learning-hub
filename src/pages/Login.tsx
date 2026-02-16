@@ -24,7 +24,12 @@ const Login = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (authAPI.isAuthenticated()) {
-      navigate("/");
+      const user = authAPI.getCurrentUser();
+      if (user?.role === "teacher") {
+        navigate("/teacher");
+      } else {
+        navigate("/");
+      }
     }
   }, [navigate]);
 
@@ -33,12 +38,18 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      await authAPI.login(nim, password);
+      const response = await authAPI.login(nim, password);
       toast({
         title: "Login Berhasil",
         description: "Selamat datang di Interactive Learning Hub!",
       });
-      navigate("/");
+
+      // Redirect based on user role
+      if (response.user.role === "teacher") {
+        navigate("/teacher");
+      } else {
+        navigate("/");
+      }
     } catch (error: any) {
       toast({
         title: "Login Gagal",
@@ -112,16 +123,29 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-            <p className="text-sm font-semibold text-center mb-2">
-              Demo Account:
-            </p>
-            <p className="text-xs text-center text-muted-foreground">
-              NIM: 2301010101 / 2301010102 / 2301010103
-            </p>
-            <p className="text-xs text-center text-muted-foreground">
-              Password: 12345
-            </p>
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-center mb-2">
+                Demo Account - Mahasiswa:
+              </p>
+              <p className="text-xs text-center text-muted-foreground">
+                NIM: 2301010101 / 2301010102 / 2301010103
+              </p>
+              <p className="text-xs text-center text-muted-foreground">
+                Password: 12345
+              </p>
+            </div>
+            <div className="pt-2 border-t">
+              <p className="text-sm font-semibold text-center mb-2">
+                Demo Account - Dosen:
+              </p>
+              <p className="text-xs text-center text-muted-foreground">
+                NIM: TEACHER001
+              </p>
+              <p className="text-xs text-center text-muted-foreground">
+                Password: 12345
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
