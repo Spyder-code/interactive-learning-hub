@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import { slides } from "@/data/slides";
+import { useParams, useNavigate } from "react-router-dom";
+import { meetings } from "@/data/meetings";
 import SlideProgress from "@/components/SlideProgress";
 import SlideContent from "@/components/SlideContent";
 import SlideTimer from "@/components/SlideTimer";
-import { ChevronLeft, ChevronRight, Monitor } from "lucide-react";
+import { ChevronLeft, ChevronRight, Monitor, Home } from "lucide-react";
 
 const Index = () => {
+  const { meetingId } = useParams<{ meetingId: string }>();
+  const navigate = useNavigate();
+  const meeting = meetings.find((m) => m.id === meetingId) || meetings[0];
+  const slides = meeting.slides;
+
   const [current, setCurrent] = useState(0);
   const [quizResults, setQuizResults] = useState<Record<string, boolean>>({});
   const slide = slides[current];
@@ -43,19 +49,22 @@ const Index = () => {
       <header className="border-b border-border bg-card">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-              <Monitor size={18} className="text-primary-foreground" />
-            </div>
+            <button
+              onClick={() => navigate("/")}
+              className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center hover:bg-secondary/80 transition-colors"
+            >
+              <Home size={18} className="text-secondary-foreground" />
+            </button>
             <div>
-              <h1 className="text-sm font-extrabold text-foreground leading-tight">
-                PERTEMUAN 1
+              <h1 className="text-sm font-extrabold text-foreground leading-tight uppercase">
+                {meeting.title}
               </h1>
               <p className="text-xs text-muted-foreground font-medium">
-                Microsoft Word — Self Learning
+                {meeting.subtitle}
               </p>
             </div>
           </div>
-          <SlideTimer totalMinutes={90} />
+          <SlideTimer totalMinutes={meeting.duration} />
         </div>
       </header>
 
