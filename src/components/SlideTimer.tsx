@@ -1,55 +1,58 @@
-import { useState, useEffect, useCallback } from "react";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { useState, useEffect } from "react";
 
 interface SlideTimerProps {
-  totalMinutes: number;
+  startDateTime?: number; // Waktu mulai mengerjakan meeting (timestamp)
+  completedDuration?: number; // Durasi final dalam menit (untuk meeting yang sudah selesai)
 }
 
-const SlideTimer = ({ totalMinutes }: SlideTimerProps) => {
-  const [seconds, setSeconds] = useState(totalMinutes * 60);
-  const [running, setRunning] = useState(false);
+const SlideTimer = ({ startDateTime, completedDuration }: SlideTimerProps) => {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
-    setSeconds(totalMinutes * 60);
-    setRunning(false);
-  }, [totalMinutes]);
+    // Jika meeting sudah selesai, tampilkan durasi final
+    if (completedDuration !== undefined) {
+      setElapsedSeconds(completedDuration * 60);
+      return;
+    }
 
-  useEffect(() => {
-    if (!running || seconds <= 0) return;
-    const id = setInterval(() => setSeconds((s) => s - 1), 1000);
+    // Jika meeting belum dimulai
+    if (!startDateTime) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    // Meeting sedang berjalan - hitung elapsed time dari start sampai sekarang
+    const updateElapsed = () => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - startDateTime) / 1000);
+      setElapsedSeconds(elapsed);
+    };
+
+    // Update immediately
+    updateElapsed();
+
+    // Update every second
+    const id = setInterval(updateElapsed, 1000);
     return () => clearInterval(id);
-  }, [running, seconds]);
+  }, [startDateTime, completedDuration]);
 
-  const reset = useCallback(() => {
-    setSeconds(totalMinutes * 60);
-    setRunning(false);
-  }, [totalMinutes]);
-
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  const isLow = seconds < 60 && seconds > 0;
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const mins = Math.floor((elapsedSeconds % 3600) / 60);
+  const secs = elapsedSeconds % 60;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground font-semibold">
+        {completedDuration !== undefined ? "Durasi:" : "Waktu Belajar:"}
+      </span>
       <span
-        className={`font-mono text-2xl font-bold tabular-nums ${
-          isLow ? "text-destructive" : seconds === 0 ? "text-muted-foreground" : "text-foreground"
+        className={`font-mono text-xl font-bold tabular-nums ${
+          completedDuration !== undefined ? "text-success" : "text-primary"
         }`}
       >
+        {hours > 0 && `${String(hours).padStart(2, "0")}:`}
         {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
       </span>
-      <button
-        onClick={() => setRunning(!running)}
-        className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-      >
-        {running ? <Pause size={18} /> : <Play size={18} />}
-      </button>
-      <button
-        onClick={reset}
-        className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-      >
-        <RotateCcw size={18} />
-      </button>
     </div>
   );
 };

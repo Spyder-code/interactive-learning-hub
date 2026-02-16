@@ -1,25 +1,84 @@
 import type { Slide } from "@/data/slides";
 import QuizSlide from "./QuizSlide";
 import ScoreSummary from "./ScoreSummary";
-import { CheckSquare, Square, Clock, AlertTriangle, BookOpen, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQuizStore } from "@/stores/quizStore";
+import {
+  FiCheckSquare,
+  FiSquare,
+  FiClock,
+  FiAlertTriangle,
+  FiBook,
+  FiAward,
+  FiUpload,
+  FiCheck,
+} from "react-icons/fi";
 
 interface SlideContentProps {
   slide: Slide;
-  onQuizAnswer?: (slideId: number, questionIndex: number, isCorrect: boolean) => void;
+  onQuizAnswer?: (
+    slideId: number,
+    questionIndex: number,
+    isCorrect: boolean,
+  ) => void;
   quizResults?: Record<string, boolean>;
   isLastSlide?: boolean;
 }
 
 const typeConfig = {
-  content: { color: "bg-primary", icon: BookOpen, label: "Materi" },
-  quiz: { color: "bg-accent", icon: AlertTriangle, label: "Quiz" },
-  task: { color: "bg-success", icon: CheckSquare, label: "Tugas" },
-  challenge: { color: "bg-warning", icon: AlertTriangle, label: "Challenge" },
+  content: { color: "bg-primary", icon: FiBook, label: "Materi" },
+  quiz: { color: "bg-accent", icon: FiAlertTriangle, label: "Quiz" },
+  task: { color: "bg-success", icon: FiCheckSquare, label: "Tugas" },
+  challenge: { color: "bg-warning", icon: FiAlertTriangle, label: "Challenge" },
 };
 
-const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideContentProps) => {
+const SlideContent = ({
+  slide,
+  onQuizAnswer,
+  quizResults,
+  isLastSlide,
+}: SlideContentProps) => {
   const config = typeConfig[slide.type];
   const Icon = config.icon;
+  const { saveUpload, getUpload, removeUpload } = useQuizStore();
+  const [uploadedFiles, setUploadedFiles] = useState<
+    Record<number, { name: string; size: number } | null>
+  >({});
+
+  // Load uploaded files from store on mount or slide change
+  useEffect(() => {
+    if (slide.tasks && slide.requireUpload) {
+      const files: Record<number, { name: string; size: number } | null> = {};
+      slide.tasks.forEach((_, index) => {
+        const upload = getUpload(slide.id, index);
+        if (upload) {
+          files[index] = { name: upload.fileName, size: upload.fileSize };
+        }
+      });
+      setUploadedFiles(files);
+    }
+  }, [slide.id, slide.tasks, slide.requireUpload, getUpload]);
+
+  const handleFileUpload = (taskIndex: number, file: File | null) => {
+    if (file) {
+      // Save to store
+      saveUpload(slide.id, taskIndex, file.name, file.size, file.type);
+      // Update local state for immediate UI feedback
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [taskIndex]: { name: file.name, size: file.size },
+      }));
+    } else {
+      // Remove from store
+      removeUpload(slide.id, taskIndex);
+      // Update local state
+      setUploadedFiles((prev) => {
+        const newFiles = { ...prev };
+        delete newFiles[taskIndex];
+        return newFiles;
+      });
+    }
+  };
 
   return (
     <div className="slide-enter">
@@ -33,7 +92,7 @@ const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideCo
         </span>
         {slide.timer && (
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-secondary text-secondary-foreground">
-            <Clock size={14} />
+            <FiClock size={14} />
             {slide.timer} menit
           </span>
         )}
@@ -44,7 +103,7 @@ const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideCo
       </p>
 
       <h2 className="text-3xl md:text-4xl font-extrabold text-foreground mb-6">
-        <span className="mr-2">{slide.icon}</span>
+        {/* <span className="mr-2">{slide.icon}</span> */}
         {slide.title}
       </h2>
 
@@ -52,10 +111,28 @@ const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideCo
       {slide.content && (
         <div className="space-y-2 mb-6">
           {slide.content.map((text, i) => (
-            <p key={i} className="text-lg text-muted-foreground leading-relaxed">
+            <p
+              key={i}
+              className="text-lg text-muted-foreground leading-relaxed"
+            >
               {text}
             </p>
           ))}
+        </div>
+      )}
+
+      {/* Hyperlink */}
+      {slide.hyperlink && (
+        <div className="mb-6">
+          <a
+            href={slide.hyperlink.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors shadow-md hover:shadow-lg"
+          >
+            <FiUpload size={18} />
+            <span>{slide.hyperlink.text}</span>
+          </a>
         </div>
       )}
 
@@ -67,7 +144,7 @@ const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideCo
               key={i}
               className="flex items-start gap-3 p-3 rounded-lg bg-card border border-border"
             >
-              <CheckSquare
+              <FiCheckSquare
                 size={20}
                 className="text-success mt-0.5 flex-shrink-0"
               />
@@ -79,31 +156,85 @@ const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideCo
 
       {/* Tasks */}
       {slide.tasks && (
-        <ul className="space-y-3 mb-6">
+        <ul className="space-y-4 mb-6">
           {slide.tasks.map((task, i) => (
             <li
               key={i}
-              className="flex items-start gap-3 p-3 rounded-lg bg-card border border-border"
+              className="flex flex-col gap-3 p-4 rounded-lg bg-card border border-border hover:border-primary/50 transition-colors"
             >
-              <Square
-                size={20}
-                className="text-muted-foreground mt-0.5 flex-shrink-0"
-              />
-              <span className="font-medium text-foreground">{task}</span>
+              <div className="flex items-start gap-3">
+                {uploadedFiles[i] ? (
+                  <FiCheckSquare
+                    size={20}
+                    className="text-success mt-0.5 flex-shrink-0"
+                  />
+                ) : (
+                  <FiSquare
+                    size={20}
+                    className="text-muted-foreground mt-0.5 flex-shrink-0"
+                  />
+                )}
+                <span className="font-medium text-foreground flex-1">
+                  {task}
+                </span>
+              </div>
+              {slide.requireUpload && (
+                <div className="ml-8">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="file"
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={(e) =>
+                        handleFileUpload(i, e.target.files?.[0] || null)
+                      }
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors text-sm font-medium">
+                      {uploadedFiles[i] ? (
+                        <>
+                          <FiCheck size={16} />
+                          <span className="truncate max-w-[200px]">
+                            {uploadedFiles[i]?.name}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <FiUpload size={16} />
+                          <span>Upload File</span>
+                        </>
+                      )}
+                    </div>
+                  </label>
+                  {uploadedFiles[i] && (
+                    <p className="text-xs text-muted-foreground mt-1 ml-1">
+                      File size:{" "}
+                      {((uploadedFiles[i]?.size || 0) / 1024).toFixed(2)} KB
+                    </p>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
       )}
 
       {/* Quiz */}
-      {slide.quiz && <QuizSlide questions={slide.quiz} slideId={slide.id} onAnswer={onQuizAnswer} />}
+      {slide.quiz && (
+        <QuizSlide
+          questions={slide.quiz}
+          slideId={slide.id}
+          onAnswer={onQuizAnswer}
+        />
+      )}
 
       {/* Score Summary on last slide */}
       {isLastSlide && quizResults && (
         <div className="mt-6">
           <div className="flex items-center gap-2 mb-4">
-            <Trophy size={20} className="text-warning" />
-            <h3 className="text-xl font-extrabold text-foreground">Skor Akhir Kamu</h3>
+            <FiAward size={20} className="text-warning" />
+            <h3 className="text-xl font-extrabold text-foreground">
+              Skor Akhir Kamu
+            </h3>
           </div>
           <ScoreSummary quizResults={quizResults} />
         </div>
@@ -112,9 +243,7 @@ const SlideContent = ({ slide, onQuizAnswer, quizResults, isLastSlide }: SlideCo
       {/* Note */}
       {slide.note && (
         <div className="mt-6 p-4 rounded-xl bg-accent/10 border border-accent/20">
-          <p className="text-sm font-semibold text-accent">
-            {slide.note}
-          </p>
+          <p className="text-sm font-semibold text-accent">{slide.note}</p>
         </div>
       )}
     </div>
