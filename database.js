@@ -27,7 +27,7 @@ function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS user_meetings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      meeting_id TEXT NOT NULL,
+      meeting_id INTEGER NOT NULL,
       start_time DATETIME NOT NULL,
       end_time DATETIME,
       duration_minutes INTEGER,
@@ -109,22 +109,62 @@ function initializeDatabase() {
 function insertDefaultUsers() {
   const hashedPassword = bcrypt.hashSync("12345", 10);
 
+  const additionalUsers = [
+    { nim: "04040325139", name: "SITI LATIFATUL ZUHRO", role: "student" },
+    { nim: "04040325146", name: "MUHAMMAD DAVA RAMADHANI", role: "student" },
+    { nim: "04040325147", name: "MUHAMMAD FAHRIL AZIZ", role: "student" },
+    { nim: "04040325148", name: "NAYLA AZKA HAMADAH", role: "student" },
+    { nim: "04040325149", name: "NUR LAILIYA", role: "student" },
+    { nim: "04040325150", name: "SAFINAH ARUN DATI", role: "student" },
+    { nim: "04040425098", name: "AHMAD IKMALUDDIN FIKRI", role: "student" },
+    { nim: "04040425099", name: "AKBAR TAUFIKUR RIDHO", role: "student" },
+    { nim: "04040425100", name: "MUHAMMAD SYAMIL FIRDAUS", role: "student" },
+    { nim: "04040425102", name: "TAZKHIYA RINI FITHRIYA", role: "student" },
+    { nim: "04040425103", name: "WAQIAH NANDA PUTRI", role: "student" },
+    { nim: "04040425104", name: "WIDYA ASMARANDANI", role: "student" },
+    { nim: "04040425105", name: "YOGA WIDIGDA", role: "student" },
+    { nim: "04040425106", name: "ZULFIKAR ARYA SAPUTRA", role: "student" },
+    {
+      nim: "04040525149",
+      name: "ACHMAD ICHYA' ULUMUDDIN ISHAQ",
+      role: "student",
+    },
+    {
+      nim: "04040525150",
+      name: "AHMAD JAKA MAULUDI NASRULLAH",
+      role: "student",
+    },
+    { nim: "04040525151", name: "ALIFIA FAJRIANI", role: "student" },
+    { nim: "04040525152", name: "AMIRA KAYLA SHANTI", role: "student" },
+    { nim: "04040525153", name: "ANNIDA FAWZUN NADIA", role: "student" },
+    { nim: "04040525154", name: "ANSYAREL HAEKAL DARWIS", role: "student" },
+    { nim: "04040525155", name: "AQILAH AZZAHRA FAHRUNNISA", role: "student" },
+    { nim: "04040525156", name: "AULIA ARDIANA NURFAIZAH", role: "student" },
+    { nim: "04040525157", name: "AURELIA EDITHA FITRIANI", role: "student" },
+    { nim: "04040525158", name: "AURELIA SAHARANI SAPUTRI", role: "student" },
+    { nim: "04040525159", name: "BILQIS MUJAHIDAH AL AZZAM", role: "student" },
+    { nim: "04040525160", name: "CHALISTA DEWI SAPUTRI", role: "student" },
+    { nim: "04040525161", name: "DIVA AULIA NOVEBRIANTY", role: "student" },
+    { nim: "04040525162", name: "FARREL RAIHAN FIRDAUS", role: "student" },
+    { nim: "04040525163", name: "FRIDA AURA PUSPARANI", role: "student" },
+    {
+      nim: "04040525164",
+      name: "GHANIYY JAVIER NUR IVANSYAH",
+      role: "student",
+    },
+    { nim: "04040525165", name: "HABIBUL MUKARROM", role: "student" },
+    { nim: "04040525166", name: "HADIL DINA FARIS", role: "student" },
+    { nim: "04040525167", name: "HUDYA CLEARESTA AZZAHRA", role: "student" },
+    { nim: "04040525168", name: "JAMILA PUTRI RAHMANIA", role: "student" },
+    { nim: "04040525169", name: "JOEHAN SYAH GUSTAV", role: "student" },
+    { nim: "04040525170", name: "M AFIQ SABIL AKBAR", role: "student" },
+    { nim: "04040525171", name: "MOH EGA WAHYU PRASETYO", role: "student" },
+  ];
+
   const users = [
     {
-      nim: "2301010101",
-      name: "Ahmad Pratama",
-      password: hashedPassword,
-      role: "student",
-    },
-    {
-      nim: "2301010102",
-      name: "Siti Nurhaliza",
-      password: hashedPassword,
-      role: "student",
-    },
-    {
-      nim: "2301010103",
-      name: "Budi Santoso",
+      nim: "20260101",
+      name: "TEST USER",
       password: hashedPassword,
       role: "student",
     },
@@ -134,6 +174,11 @@ function insertDefaultUsers() {
       password: hashedPassword,
       role: "teacher",
     },
+    // additional students with password = their NIM
+    ...additionalUsers.map((u) => ({
+      ...u,
+      password: bcrypt.hashSync(u.nim, 10),
+    })),
   ];
 
   const insert = db.prepare(
@@ -153,5 +198,62 @@ function insertDefaultUsers() {
 }
 
 initializeDatabase();
+
+// Migration helper: Convert old TEXT meeting_id to INTEGER
+// Run this if you have existing data with string meeting_ids like "pertemuan-1"
+function migrateMeetingIdToInteger() {
+  try {
+    console.log("🔄 Starting meeting_id migration...");
+
+    // Check if there's any data with TEXT meeting_id
+    const oldData = db
+      .prepare(
+        "SELECT id, meeting_id FROM user_meetings WHERE typeof(meeting_id) = 'text'",
+      )
+      .all();
+
+    if (oldData.length === 0) {
+      console.log(
+        "✅ No migration needed - all meeting_ids are already integers",
+      );
+      return;
+    }
+
+    console.log(`Found ${oldData.length} records to migrate`);
+
+    // Update each record: convert "pertemuan-X" to X
+    const update = db.prepare(
+      "UPDATE user_meetings SET meeting_id = ? WHERE id = ?",
+    );
+    const updateMany = db.transaction((records) => {
+      for (const record of records) {
+        const meetingIdStr = String(record.meeting_id);
+        // Extract number from "pertemuan-X" format
+        const match = meetingIdStr.match(/\d+/);
+        if (match) {
+          const meetingNumber = parseInt(match[0]);
+          update.run(meetingNumber, record.id);
+          console.log(
+            `  ✓ Migrated record ${record.id}: "${meetingIdStr}" → ${meetingNumber}`,
+          );
+        }
+      }
+    });
+
+    updateMany(oldData);
+    console.log("✅ Migration completed successfully");
+  } catch (error) {
+    console.error("❌ Migration failed:", error.message);
+    console.log(
+      "⚠️ If you see 'datatype mismatch', you may need to recreate the table:",
+    );
+    console.log("   1. Backup your database.sqlite file");
+    console.log("   2. Delete database.sqlite");
+    console.log("   3. Restart the server to create a new database");
+  }
+}
+
+// Uncomment the line below to run migration (only run once)
+// migrateMeetingIdToInteger();
 
 export default db;

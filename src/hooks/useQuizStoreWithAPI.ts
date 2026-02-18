@@ -1,11 +1,16 @@
 import { useQuizStore } from "@/stores/quizStore";
 import { meetingAPI } from "@/services/api";
 import { useEffect, useState, useRef } from "react";
+import { getMeetingNumber } from "@/data/meetings";
 
 // Hook untuk mengintegrasikan zustand store dengan backend API
 export const useQuizStoreWithAPI = (meetingId: string) => {
+  // Convert meetingId string to meeting number for API calls
+  const meetingNumber = getMeetingNumber(meetingId);
+
   const store = useQuizStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [lastSlideIndex, setLastSlideIndex] = useState<number>(0);
   const loadedMeetingRef = useRef<string | null>(null);
 
   // Load data from backend when component mounts or meetingId changes
@@ -22,7 +27,7 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
       setIsLoading(true);
 
       try {
-        const data = await meetingAPI.getMeeting(meetingId);
+        const data = await meetingAPI.getMeeting(meetingNumber);
 
         // Note: Tidak perlu clear store karena:
         // 1. Data dari backend akan overwrite data yang ada
@@ -60,6 +65,11 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
             meetingId,
             data.slideProgress.max_slide_reached,
           );
+        }
+
+        // Load last slide index from meeting data
+        if (data.meeting && data.meeting.last_slide_index !== null) {
+          setLastSlideIndex(data.meeting.last_slide_index);
         }
 
         // Load meeting history if completed
@@ -136,7 +146,7 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
     // Then save to backend
     try {
       await meetingAPI.saveQuizAnswer(
-        meetingId,
+        meetingNumber,
         slideId,
         questionIndex,
         selectedOption,
@@ -159,7 +169,7 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
 
     // Then save actual file to backend
     try {
-      await meetingAPI.saveTaskUpload(meetingId, slideId, taskIndex, file);
+      await meetingAPI.saveTaskUpload(meetingNumber, slideId, taskIndex, file);
     } catch (error) {
       console.error("Failed to save task to backend:", error);
       // Remove from local store if backend save fails
@@ -179,10 +189,24 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
 
       // Then save to backend
       try {
-        await meetingAPI.updateProgress(meetingId, slideIndex, slideIndex);
+        await meetingAPI.updateProgress(meetingNumber, slideIndex, slideIndex);
       } catch (error) {
         console.error("Failed to save progress to backend:", error);
       }
+    }
+  };
+
+  // Update current slide index (last visited slide)
+  const updateCurrentSlideIndex = async (slideIndex: number) => {
+    // Update local state
+    setLastSlideIndex(slideIndex);
+
+    // Save to backend
+    try {
+      const currentMax = store.getMaxSlideReached(meetingId);
+      await meetingAPI.updateProgress(meetingNumber, slideIndex, currentMax);
+    } catch (error) {
+      console.error("Failed to update current slide to backend:", error);
     }
   };
 
@@ -208,7 +232,7 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
           : 0;
 
       await meetingAPI.completeMeeting(
-        meetingId,
+        meetingNumber,
         totalQuestions,
         correctAnswers,
         percentage,
@@ -225,7 +249,7 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
 
     // Then remove from backend
     try {
-      await meetingAPI.removeTaskUpload(meetingId, slideId, taskIndex);
+      await meetingAPI.removeTaskUpload(meetingNumber, slideId, taskIndex);
     } catch (error) {
       console.error("Failed to remove task from backend:", error);
     }
@@ -236,8 +260,10 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
     saveAnswer: saveAnswerWithAPI,
     saveUpload: saveUploadWithAPI,
     updateMaxSlideReached: updateMaxSlideReachedWithAPI,
+    updateCurrentSlideIndex,
     saveMeetingHistory: saveMeetingHistoryWithAPI,
     removeUpload: removeUploadWithAPI,
     isLoading,
+    lastSlideIndex,
   };
 };

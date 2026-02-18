@@ -13,10 +13,31 @@ interface QuizSlideProps {
     questionIndex: number,
     isCorrect: boolean,
   ) => void;
+  saveAnswer?: (
+    slideId: number,
+    questionIndex: number,
+    selectedOption: string,
+    isCorrect: boolean,
+    questionType?: "multiple-choice" | "free-text",
+  ) => void;
+  getAnswer?: (slideId: number, questionIndex: number) => any;
+  isAnswered?: (slideId: number, questionIndex: number) => boolean;
 }
 
-const QuizSlide = ({ questions, slideId, onAnswer }: QuizSlideProps) => {
-  const { saveAnswer, getAnswer, isAnswered } = useQuizStore();
+const QuizSlide = ({
+  questions,
+  slideId,
+  onAnswer,
+  saveAnswer: saveAnswerProp,
+  getAnswer: getAnswerProp,
+  isAnswered: isAnsweredProp,
+}: QuizSlideProps) => {
+  // Use props if provided, otherwise fallback to store
+  const store = useQuizStore();
+  const saveAnswer = saveAnswerProp || store.saveAnswer;
+  const getAnswer = getAnswerProp || store.getAnswer;
+  const isAnswered = isAnsweredProp || store.isAnswered;
+
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [textInputs, setTextInputs] = useState<Record<number, string>>({});

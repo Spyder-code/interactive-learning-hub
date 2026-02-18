@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ArticleExample from "./pages/ArticleExample";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/article-example" element={<ArticleExample />} />
           <Route
             path="/teacher"
             element={

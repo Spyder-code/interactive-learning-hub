@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { authAPI } from "@/services/api";
-import { meetings } from "@/data/meetings";
+import { meetings, getMeetingId } from "@/data/meetings";
 import {
   Card,
   CardContent,
@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -40,6 +47,8 @@ import {
   FiFileText,
   FiUpload,
   FiArrowLeft,
+  FiEye,
+  FiDownload,
 } from "react-icons/fi";
 
 interface Student {
@@ -54,7 +63,7 @@ interface Student {
 
 interface Meeting {
   id: number;
-  meeting_id: string;
+  meeting_id: number; // Integer from database
   student_name: string;
   student_nim: string;
   start_time: string;
@@ -84,6 +93,7 @@ interface TaskUpload {
   file_name: string;
   file_size: number;
   file_type: string;
+  file_path: string;
   timestamp: string;
 }
 
@@ -109,7 +119,7 @@ interface Statistics {
   recentActivity: Array<{
     name: string;
     nim: string;
-    meeting_id: string;
+    meeting_id: number; // Integer from database
     percentage: number;
     updated_at: string;
   }>;
@@ -126,6 +136,8 @@ const TeacherDashboard = () => {
   );
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<TaskUpload | null>(null);
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -207,12 +219,16 @@ const TeacherDashboard = () => {
     }
   };
 
-  const loadMeetingDetail = async (studentId: number, meetingId: string) => {
+  const loadMeetingDetail = async (
+    studentId: number,
+    meetingNumber: number,
+  ) => {
     try {
       setLoadingDetail(true);
       const token = localStorage.getItem("token");
+
       const res = await fetch(
-        `http://localhost:3001/api/teacher/students/${studentId}/meetings/${meetingId}`,
+        `http://localhost:3001/api/teacher/students/${studentId}/meetings/${meetingNumber}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -225,7 +241,7 @@ const TeacherDashboard = () => {
 
       // Debug logging
       console.log("=== Meeting Detail Debug ===");
-      console.log("Meeting ID:", meetingId);
+      console.log("Meeting Number:", meetingNumber);
       console.log("Student ID:", studentId);
       console.log("Meeting Data:", data.meeting);
       console.log("Quiz Answers Count:", data.quizAnswers.length);
@@ -262,8 +278,21 @@ const TeacherDashboard = () => {
     }
   };
 
-  const getTotalSlidesForMeeting = (meetingId: string): number => {
-    console.log("Getting total slides for meeting:", meetingId);
+  const getTotalSlidesForMeeting = (
+    meetingIdOrNumber: string | number,
+  ): number => {
+    // Convert integer meeting number to string meeting ID if needed
+    const meetingId =
+      typeof meetingIdOrNumber === "number"
+        ? getMeetingId(meetingIdOrNumber)
+        : meetingIdOrNumber;
+
+    console.log(
+      "Getting total slides for meeting:",
+      meetingIdOrNumber,
+      "->",
+      meetingId,
+    );
     const meeting = meetings.find((m) => m.id === meetingId);
 
     if (!meeting) {
@@ -271,11 +300,15 @@ const TeacherDashboard = () => {
         `Meeting not found: ${meetingId}. Available meetings:`,
         meetings.map((m) => m.id),
       );
-      // Fallback: try to extract number and match by number
-      const meetingNumber = meetingId.match(/\d+/)?.[0];
-      if (meetingNumber) {
+      // Fallback: try to match by number
+      const meetingNumber =
+        typeof meetingIdOrNumber === "number"
+          ? meetingIdOrNumber
+          : parseInt(meetingId.match(/\d+/)?.[0] || "0");
+
+      if (meetingNumber > 0) {
         const meetingByNumber = meetings.find(
-          (m) => m.number === parseInt(meetingNumber),
+          (m) => m.number === meetingNumber,
         );
         if (meetingByNumber) {
           console.log(
@@ -454,7 +487,8 @@ const TeacherDashboard = () => {
                         <div>
                           <CardTitle className="flex items-center gap-2">
                             <FiFileText className="w-5 h-5" />
-                            Detail Meeting: {selectedMeeting.meeting_id}
+                            Detail Meeting: Pertemuan{" "}
+                            {selectedMeeting.meeting_id}
                           </CardTitle>
                           <CardDescription>
                             {selectedStudent.name} ({selectedStudent.nim})
@@ -538,26 +572,6 @@ const TeacherDashboard = () => {
                         </p>
                       ) : (
                         <div className="space-y-2">
-                          {/* Debug info */}
-                          {process.env.NODE_ENV === "development" && (
-                            <div className="mb-2 p-2 bg-muted/50 rounded text-xs">
-                              <p>
-                                Total slides in meeting:{" "}
-                                {getTotalSlidesForMeeting(
-                                  selectedMeeting.meeting_id,
-                                )}
-                              </p>
-                              <p>
-                                Last slide index:{" "}
-                                {selectedMeeting.last_slide_index}
-                              </p>
-                              <p>
-                                Slide progress records:{" "}
-                                {meetingDetail.slideProgress.length}
-                              </p>
-                              <p>Meeting ID: {selectedMeeting.meeting_id}</p>
-                            </div>
-                          )}
                           {meetingDetail.slideProgress.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {Array.from(
@@ -655,22 +669,6 @@ const TeacherDashboard = () => {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {/* Debug info */}
-                      {process.env.NODE_ENV === "development" && (
-                        <div className="mb-4 p-2 bg-muted/50 rounded text-xs">
-                          <p>
-                            Quiz answers count:{" "}
-                            {meetingDetail.quizAnswers.length}
-                          </p>
-                          <pre>
-                            {JSON.stringify(
-                              meetingDetail.quizAnswers.slice(0, 2),
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                      )}
                       {meetingDetail.quizAnswers.length > 0 ? (
                         <Accordion type="single" collapsible className="w-full">
                           {meetingDetail.quizAnswers.map((answer, index) => (
@@ -754,30 +752,14 @@ const TeacherDashboard = () => {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {/* Debug info */}
-                      {process.env.NODE_ENV === "development" && (
-                        <div className="mb-4 p-2 bg-muted/50 rounded text-xs">
-                          <p>
-                            Task uploads count:{" "}
-                            {meetingDetail.taskUploads.length}
-                          </p>
-                          <pre>
-                            {JSON.stringify(
-                              meetingDetail.taskUploads.slice(0, 2),
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                      )}
                       {meetingDetail.taskUploads.length > 0 ? (
                         <div className="space-y-3">
                           {meetingDetail.taskUploads.map((upload) => (
                             <div
                               key={upload.id}
-                              className="flex items-center justify-between p-4 rounded-lg border bg-card"
+                              className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 flex-1">
                                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                                   <FiFileText className="w-5 h-5 text-primary" />
                                 </div>
@@ -791,16 +773,45 @@ const TeacherDashboard = () => {
                                   </p>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm font-medium">
-                                  {(upload.file_size / 1024).toFixed(2)} KB
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {upload.file_type}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(upload.timestamp)}
-                                </p>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <p className="text-sm font-medium">
+                                    {(upload.file_size / 1024).toFixed(2)} KB
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {upload.file_type}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatDate(upload.timestamp)}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setSelectedFile(upload);
+                                      setFilePreviewOpen(true);
+                                    }}
+                                  >
+                                    <FiEye className="mr-2 h-4 w-4" />
+                                    Lihat
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      // file_path is "storage/nim/filename" - remove storage/ prefix
+                                      const filePathParts = upload.file_path
+                                        .replace(/\\/g, "/")
+                                        .replace(/^storage\//, "");
+                                      const fileUrl = `http://localhost:3001/uploads/${filePathParts}`;
+                                      window.open(fileUrl, "_blank");
+                                    }}
+                                  >
+                                    <FiDownload className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -858,7 +869,7 @@ const TeacherDashboard = () => {
                           {studentMeetings.map((meeting) => (
                             <TableRow key={meeting.id}>
                               <TableCell className="font-medium">
-                                {meeting.meeting_id}
+                                Pertemuan {meeting.meeting_id}
                               </TableCell>
                               <TableCell>
                                 {formatDate(meeting.start_time)}
@@ -1000,7 +1011,7 @@ const TeacherDashboard = () => {
                             {activity.name}
                           </TableCell>
                           <TableCell>{activity.nim}</TableCell>
-                          <TableCell>{activity.meeting_id}</TableCell>
+                          <TableCell>Pertemuan {activity.meeting_id}</TableCell>
                           <TableCell>
                             <Badge
                               variant={
@@ -1029,6 +1040,100 @@ const TeacherDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* File Preview Modal */}
+      <Dialog open={filePreviewOpen} onOpenChange={setFilePreviewOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FiFileText className="w-5 h-5" />
+              {selectedFile?.file_name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedFile && (
+                <div className="flex items-center gap-4 mt-2">
+                  <span>
+                    Slide {selectedFile.slide_id} - Task{" "}
+                    {selectedFile.task_index + 1}
+                  </span>
+                  <span>•</span>
+                  <span>{(selectedFile.file_size / 1024).toFixed(2)} KB</span>
+                  <span>•</span>
+                  <span>{selectedFile.file_type}</span>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {selectedFile && selectedStudent && (
+              <div className="flex flex-col items-center justify-center">
+                {(() => {
+                  // file_path is "storage/nim/filename" - remove storage/ prefix
+                  const filePathParts = selectedFile.file_path
+                    .replace(/\\/g, "/")
+                    .replace(/^storage\//, "");
+                  const fileUrl = `http://localhost:3001/uploads/${filePathParts}`;
+
+                  if (selectedFile.file_type.startsWith("image/")) {
+                    return (
+                      <img
+                        src={fileUrl}
+                        alt={selectedFile.file_name}
+                        className="max-w-full h-auto rounded-lg border"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = "none";
+                          target.parentElement!.innerHTML =
+                            '<div class="text-center p-8 text-muted-foreground">Tidak dapat memuat gambar</div>';
+                        }}
+                      />
+                    );
+                  } else if (selectedFile.file_type === "application/pdf") {
+                    return (
+                      <iframe
+                        src={fileUrl}
+                        className="w-full h-[600px] rounded-lg border"
+                        title={selectedFile.file_name}
+                      />
+                    );
+                  } else {
+                    return null;
+                  }
+                })()}
+                {!selectedFile.file_type.startsWith("image/") &&
+                  selectedFile.file_type !== "application/pdf" && (
+                    <div className="text-center p-8 space-y-4">
+                      <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                        <FiFileText className="w-10 h-10 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-lg mb-2">
+                          {selectedFile.file_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Pratinjau tidak tersedia untuk tipe file ini
+                        </p>
+                        <Button
+                          onClick={() => {
+                            // file_path is "storage/nim/filename" - remove storage/ prefix
+                            const filePathParts = selectedFile.file_path
+                              .replace(/\\/g, "/")
+                              .replace(/^storage\//, "");
+                            const fileUrl = `http://localhost:3001/uploads/${filePathParts}`;
+                            window.open(fileUrl, "_blank");
+                          }}
+                        >
+                          <FiDownload className="mr-2 h-4 w-4" />
+                          Download File
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

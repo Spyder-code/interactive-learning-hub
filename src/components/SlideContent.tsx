@@ -29,6 +29,15 @@ interface SlideContentProps {
     file: File,
   ) => Promise<void>;
   onRemoveUpload?: (slideId: number, taskIndex: number) => Promise<void>;
+  saveAnswer?: (
+    slideId: number,
+    questionIndex: number,
+    selectedOption: string,
+    isCorrect: boolean,
+    questionType?: "multiple-choice" | "free-text",
+  ) => void;
+  getAnswer?: (slideId: number, questionIndex: number) => any;
+  isAnswered?: (slideId: number, questionIndex: number) => boolean;
 }
 
 const typeConfig = {
@@ -45,6 +54,9 @@ const SlideContent = ({
   isLastSlide,
   onSaveUpload,
   onRemoveUpload,
+  saveAnswer,
+  getAnswer,
+  isAnswered,
 }: SlideContentProps) => {
   const config = typeConfig[slide.type];
   const Icon = config.icon;
@@ -53,6 +65,7 @@ const SlideContent = ({
     Record<number, { name: string; size: number } | null>
   >({});
   const [isUploading, setIsUploading] = useState<Record<number, boolean>>({});
+  const [activeUpload, setActiveUpload] = useState<number | null>(null);
 
   // Load uploaded files from store on mount or slide change
   useEffect(() => {
@@ -172,7 +185,18 @@ const SlideContent = ({
               key={i}
               className="text-lg text-muted-foreground leading-relaxed"
             >
-              {text}
+              {text.split(/(\*\*[^*]+\*\*)/g).map((part, idx) =>
+                part.startsWith("**") && part.endsWith("**") ? (
+                  <strong
+                    key={idx}
+                    className="font-bold text-foreground text-primary"
+                  >
+                    {part.slice(2, -2)}
+                  </strong>
+                ) : (
+                  part
+                ),
+              )}
             </p>
           ))}
         </div>
@@ -205,7 +229,17 @@ const SlideContent = ({
                 size={20}
                 className="text-success mt-0.5 flex-shrink-0"
               />
-              <span className="font-medium text-foreground">{item}</span>
+              <span className="font-medium text-foreground">
+                {item.split(/(\*\*[^*]+\*\*)/g).map((part, idx) =>
+                  part.startsWith("**") && part.endsWith("**") ? (
+                    <strong key={idx} className="font-bold text-primary">
+                      {part.slice(2, -2)}
+                    </strong>
+                  ) : (
+                    part
+                  ),
+                )}
+              </span>
             </li>
           ))}
         </ul>
@@ -236,18 +270,48 @@ const SlideContent = ({
                 </span>
               </div>
               {slide.requireUpload && (
-                <div className="ml-8">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="file"
-                      accept="image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                      onChange={(e) =>
-                        handleFileUpload(i, e.target.files?.[0] || null)
+                <div
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const items = e.clipboardData?.items;
+                    if (items) {
+                      for (let j = 0; j < items.length; j++) {
+                        if (items[j].type.indexOf("image") !== -1) {
+                          const file = items[j].getAsFile();
+                          if (file) {
+                            handleFileUpload(i, file);
+                          }
+                          break;
+                        }
                       }
-                      className="hidden"
-                      disabled={isUploading[i]}
-                    />
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors text-sm font-medium">
+                    }
+                  }}
+                  onFocus={() => setActiveUpload(i)}
+                  onBlur={() => setActiveUpload(null)}
+                  tabIndex={0}
+                  className={`ml-8 transition-all ${activeUpload === i ? "ring-2 ring-primary ring-offset-2 rounded-lg" : ""}`}
+                >
+                  <input
+                    id={`file-upload-${slide.id}-${i}`}
+                    type="file"
+                    accept="image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={(e) =>
+                      handleFileUpload(i, e.target.files?.[0] || null)
+                    }
+                    className="hidden"
+                    disabled={isUploading[i]}
+                  />
+                  <label
+                    htmlFor={`file-upload-${slide.id}-${i}`}
+                    className="flex items-center gap-2 cursor-pointer group"
+                  >
+                    <div
+                      className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors text-sm font-medium ${
+                        activeUpload === i
+                          ? "bg-primary text-primary-foreground border-2 border-primary shadow-md"
+                          : "bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
+                      }`}
+                    >
                       {isUploading[i] ? (
                         <>
                           <FiUpload size={16} className="animate-pulse" />
@@ -263,7 +327,7 @@ const SlideContent = ({
                       ) : (
                         <>
                           <FiUpload size={16} />
-                          <span>Upload File</span>
+                          <span>Upload File (Click or Ctrl+V)</span>
                         </>
                       )}
                     </div>
@@ -287,6 +351,9 @@ const SlideContent = ({
           questions={slide.quiz}
           slideId={slide.id}
           onAnswer={onQuizAnswer}
+          saveAnswer={saveAnswer}
+          getAnswer={getAnswer}
+          isAnswered={isAnswered}
         />
       )}
 

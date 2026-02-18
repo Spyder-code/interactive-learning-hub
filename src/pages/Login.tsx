@@ -122,31 +122,6 @@ const Login = () => {
               {isLoading ? "Memproses..." : "Masuk"}
             </Button>
           </form>
-
-          <div className="mt-6 p-4 bg-muted/50 rounded-lg space-y-3">
-            <div>
-              <p className="text-sm font-semibold text-center mb-2">
-                Demo Account - Mahasiswa:
-              </p>
-              <p className="text-xs text-center text-muted-foreground">
-                NIM: 2301010101 / 2301010102 / 2301010103
-              </p>
-              <p className="text-xs text-center text-muted-foreground">
-                Password: 12345
-              </p>
-            </div>
-            <div className="pt-2 border-t">
-              <p className="text-sm font-semibold text-center mb-2">
-                Demo Account - Dosen:
-              </p>
-              <p className="text-xs text-center text-muted-foreground">
-                NIM: TEACHER001
-              </p>
-              <p className="text-xs text-center text-muted-foreground">
-                Password: 12345
-              </p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

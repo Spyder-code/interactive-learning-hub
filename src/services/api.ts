@@ -109,8 +109,8 @@ export const meetingAPI = {
     return response.json();
   },
 
-  async getMeeting(meetingId: string) {
-    const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}`, {
+  async getMeeting(meetingNumber: number) {
+    const response = await fetch(`${API_BASE_URL}/meetings/${meetingNumber}`, {
       headers: getAuthHeaders(),
     });
 
@@ -122,24 +122,27 @@ export const meetingAPI = {
   },
 
   async saveQuizAnswer(
-    meetingId: string,
+    meetingNumber: number,
     slideId: number,
     questionIndex: number,
     selectedOption: string,
     isCorrect: boolean,
     questionType: string = "multiple-choice",
   ) {
-    const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}/quiz`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        slideId,
-        questionIndex,
-        selectedOption,
-        isCorrect,
-        questionType,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/meetings/${meetingNumber}/quiz`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          slideId,
+          questionIndex,
+          selectedOption,
+          isCorrect,
+          questionType,
+        }),
+      },
+    );
 
     if (!response.ok) {
       throw new Error("Gagal menyimpan jawaban");
@@ -149,7 +152,7 @@ export const meetingAPI = {
   },
 
   async saveTaskUpload(
-    meetingId: string,
+    meetingNumber: number,
     slideId: number,
     taskIndex: number,
     file: File,
@@ -160,14 +163,17 @@ export const meetingAPI = {
     formData.append("taskIndex", taskIndex.toString());
 
     const token = localStorage.getItem("token");
-    const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}/task`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        // Don't set Content-Type header - browser will set it with boundary
+    const response = await fetch(
+      `${API_BASE_URL}/meetings/${meetingNumber}/task`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Don't set Content-Type header - browser will set it with boundary
+        },
+        body: formData,
       },
-      body: formData,
-    });
+    );
 
     if (!response.ok) {
       const error = await response.json();
@@ -178,18 +184,21 @@ export const meetingAPI = {
   },
 
   async removeTaskUpload(
-    meetingId: string,
+    meetingNumber: number,
     slideId: number,
     taskIndex: number,
   ) {
-    const response = await fetch(`${API_BASE_URL}/meetings/${meetingId}/task`, {
-      method: "DELETE",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        slideId,
-        taskIndex,
-      }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/meetings/${meetingNumber}/task`,
+      {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          slideId,
+          taskIndex,
+        }),
+      },
+    );
 
     if (!response.ok) {
       throw new Error("Gagal menghapus task");
@@ -199,12 +208,12 @@ export const meetingAPI = {
   },
 
   async updateProgress(
-    meetingId: string,
+    meetingNumber: number,
     slideIndex: number,
     maxSlideReached: number,
   ) {
     const response = await fetch(
-      `${API_BASE_URL}/meetings/${meetingId}/progress`,
+      `${API_BASE_URL}/meetings/${meetingNumber}/progress`,
       {
         method: "POST",
         headers: getAuthHeaders(),
@@ -223,13 +232,13 @@ export const meetingAPI = {
   },
 
   async completeMeeting(
-    meetingId: string,
+    meetingNumber: number,
     totalQuestions: number,
     correctAnswers: number,
     percentage: number,
   ) {
     const response = await fetch(
-      `${API_BASE_URL}/meetings/${meetingId}/complete`,
+      `${API_BASE_URL}/meetings/${meetingNumber}/complete`,
       {
         method: "POST",
         headers: getAuthHeaders(),
@@ -296,9 +305,9 @@ export const teacherAPI = {
     return response.json();
   },
 
-  async getStudentMeetingDetail(studentId: number, meetingId: string) {
+  async getStudentMeetingDetail(studentId: number, meetingNumber: number) {
     const response = await fetch(
-      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/${studentId}/meetings/${meetingId}`,
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/${studentId}/meetings/${meetingNumber}`,
       {
         headers: getAuthHeaders(),
       },
@@ -311,9 +320,9 @@ export const teacherAPI = {
     return response.json();
   },
 
-  async getMeetingReports(meetingId?: string) {
-    const url = meetingId
-      ? `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/meetings?meetingId=${meetingId}`
+  async getMeetingReports(meetingNumber?: number) {
+    const url = meetingNumber
+      ? `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/meetings?meetingNumber=${meetingNumber}`
       : `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/meetings`;
 
     const response = await fetch(url, {

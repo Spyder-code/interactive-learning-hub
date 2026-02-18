@@ -100,6 +100,9 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
+// Serve uploaded files statically from storage directory
+app.use("/uploads", express.static(path.join(__dirname, "storage")));
+
 // ==================== AUTH ROUTES ====================
 
 // Login endpoint
@@ -262,7 +265,7 @@ app.get("/api/meetings/all-status", authenticateToken, (req, res) => {
 
 // Get specific meeting data
 app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
-  const { meetingId } = req.params;
+  const meetingId = parseInt(req.params.meetingId);
 
   try {
     let userMeeting = db
@@ -336,7 +339,7 @@ app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
 
 // Save quiz answer
 app.post("/api/meetings/:meetingId/quiz", authenticateToken, (req, res) => {
-  const { meetingId } = req.params;
+  const meetingId = parseInt(req.params.meetingId);
   const { slideId, questionIndex, selectedOption, isCorrect, questionType } =
     req.body;
 
@@ -398,7 +401,7 @@ app.post(
   authenticateToken,
   upload.single("file"),
   (req, res) => {
-    const { meetingId } = req.params;
+    const meetingId = parseInt(req.params.meetingId);
     const { slideId, taskIndex } = req.body;
 
     try {
@@ -502,7 +505,7 @@ app.post(
 
 // Delete task upload
 app.delete("/api/meetings/:meetingId/task", authenticateToken, (req, res) => {
-  const { meetingId } = req.params;
+  const meetingId = parseInt(req.params.meetingId);
   const { slideId, taskIndex } = req.body;
 
   try {
@@ -555,7 +558,7 @@ app.delete("/api/meetings/:meetingId/task", authenticateToken, (req, res) => {
 
 // Update slide progress
 app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
-  const { meetingId } = req.params;
+  const meetingId = parseInt(req.params.meetingId);
   const { slideIndex, maxSlideReached } = req.body;
 
   try {
@@ -600,7 +603,7 @@ app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
       SET last_slide_index = ?, updated_at = ?
       WHERE id = ?
     `,
-    ).run(maxSlideReached, getJakartaNow(), userMeeting.id);
+    ).run(slideIndex, getJakartaNow(), userMeeting.id);
 
     res.json({ message: "Progress berhasil disimpan" });
   } catch (error) {
@@ -611,7 +614,7 @@ app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
 
 // Complete meeting
 app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
-  const { meetingId } = req.params;
+  const meetingId = parseInt(req.params.meetingId);
   const { totalQuestions, correctAnswers, percentage } = req.body;
 
   try {
@@ -805,7 +808,8 @@ app.get(
   "/api/teacher/students/:studentId/meetings/:meetingId",
   authenticateTeacher,
   (req, res) => {
-    const { studentId, meetingId } = req.params;
+    const { studentId } = req.params;
+    const meetingId = parseInt(req.params.meetingId);
 
     try {
       const meeting = db

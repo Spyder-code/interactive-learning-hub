@@ -31,3 +31,5 @@ database.sqlite-journal
 *.njsproj
 *.sln
 *.sw?
+
+storage/*
