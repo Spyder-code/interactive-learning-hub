@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+  import.meta.env.VITE_API_URL || "https://ictapi.zhaf.my.id/api";
 
 // Helper function untuk mengambil auth token
 function getAuthToken() {

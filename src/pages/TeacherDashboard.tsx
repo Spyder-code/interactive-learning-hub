@@ -157,7 +157,7 @@ const TeacherDashboard = () => {
 
       // Load students summary
       const studentsRes = await fetch(
-        "http://localhost:3001/api/teacher/students/summary",
+        "https://ictapi.zhaf.my.id/api/teacher/students/summary",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -171,7 +171,7 @@ const TeacherDashboard = () => {
 
       // Load statistics
       const statsRes = await fetch(
-        "http://localhost:3001/api/teacher/statistics",
+        "https://ictapi.zhaf.my.id/api/teacher/statistics",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -198,7 +198,7 @@ const TeacherDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        `http://localhost:3001/api/teacher/students/${studentId}/meetings`,
+        `https://ictapi.zhaf.my.id/api/teacher/students/${studentId}/meetings`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -228,7 +228,7 @@ const TeacherDashboard = () => {
       const token = localStorage.getItem("token");
 
       const res = await fetch(
-        `http://localhost:3001/api/teacher/students/${studentId}/meetings/${meetingNumber}`,
+        `https://ictapi.zhaf.my.id/api/teacher/students/${studentId}/meetings/${meetingNumber}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -805,7 +805,7 @@ const TeacherDashboard = () => {
                                       const filePathParts = upload.file_path
                                         .replace(/\\/g, "/")
                                         .replace(/^storage\//, "");
-                                      const fileUrl = `http://localhost:3001/uploads/${filePathParts}`;
+                                      const fileUrl = `https://ictapi.zhaf.my.id/uploads/${filePathParts}`;
                                       window.open(fileUrl, "_blank");
                                     }}
                                   >
@@ -1072,7 +1072,7 @@ const TeacherDashboard = () => {
                   const filePathParts = selectedFile.file_path
                     .replace(/\\/g, "/")
                     .replace(/^storage\//, "");
-                  const fileUrl = `http://localhost:3001/uploads/${filePathParts}`;
+                  const fileUrl = `https://ictapi.zhaf.my.id/uploads/${filePathParts}`;
 
                   if (selectedFile.file_type.startsWith("image/")) {
                     return (
@@ -1119,7 +1119,7 @@ const TeacherDashboard = () => {
                             const filePathParts = selectedFile.file_path
                               .replace(/\\/g, "/")
                               .replace(/^storage\//, "");
-                            const fileUrl = `http://localhost:3001/uploads/${filePathParts}`;
+                            const fileUrl = `https://ictapi.zhaf.my.id/uploads/${filePathParts}`;
                             window.open(fileUrl, "_blank");
                           }}
                         >
