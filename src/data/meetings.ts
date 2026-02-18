@@ -108,8 +108,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiFileText, { className: "text-primary" }),
     duration: 90,
     slides: slidesP1,
-    openedAt: openedAtToday,
-    closedAt: closedAtToday,
+    openedAt: toLocalISO(new Date("2026-02-18T20:00:00")),
+    closedAt: toLocalISO(new Date("2026-03-19T18:00:00")),
   },
   {
     id: "pertemuan-2",
@@ -120,7 +120,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP2,
     openedAt: toLocalISO(new Date("2026-02-19T15:00:00")), // Dibuka mulai 19 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-02-19T18:00:00")), // Ditutup setelah 19 Feb 2024, jam 17:00
+    closedAt: toLocalISO(new Date("2026-03-19T18:00:00")), // Ditutup setelah 19 Feb 2024, jam 17:00
   },
   {
     id: "pertemuan-3",
@@ -131,7 +131,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP3,
     openedAt: toLocalISO(new Date("2026-02-19T15:00:00")), // Dibuka mulai 19 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-02-19T18:00:00")), // Ditutup setelah 19 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-19T18:00:00")), // Ditutup setelah 19 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-4",
