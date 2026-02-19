@@ -514,6 +514,7 @@ const Index = () => {
             >
               <SlideContent
                 slide={slide}
+                slides={slides}
                 onQuizAnswer={handleQuizAnswer}
                 quizResults={quizResults}
                 isLastSlide={current === slides.length - 1}

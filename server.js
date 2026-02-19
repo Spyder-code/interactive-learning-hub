@@ -618,6 +618,27 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
   const { totalQuestions, correctAnswers, percentage } = req.body;
 
   try {
+    // Validate input data
+    if (
+      typeof totalQuestions !== "number" ||
+      typeof correctAnswers !== "number" ||
+      typeof percentage !== "number"
+    ) {
+      return res.status(400).json({ error: "Invalid data format" });
+    }
+
+    if (correctAnswers > totalQuestions) {
+      return res.status(400).json({
+        error: "Correct answers cannot exceed total questions",
+      });
+    }
+
+    if (percentage < 0 || percentage > 100) {
+      return res
+        .status(400)
+        .json({ error: "Percentage must be between 0-100" });
+    }
+
     const userMeeting = db
       .prepare(
         `
@@ -655,6 +676,8 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
     }
 
     // Update meeting as completed
+    // NOTE: This is the ONLY place where total_questions and percentage should be set correctly.
+    // The frontend calculates these based on the actual meeting content (all quiz slides).
     const endTimeJakarta = getJakartaNow();
     db.prepare(
       `
@@ -688,6 +711,7 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
 // ==================== HELPER FUNCTIONS ====================
 
 function updateMeetingStats(userMeetingId) {
+  // Count how many questions have been answered correctly
   const answers = db
     .prepare(
       `
@@ -698,25 +722,19 @@ function updateMeetingStats(userMeetingId) {
     )
     .get(userMeetingId);
 
-  const percentage =
-    answers.total > 0 ? (answers.correct / answers.total) * 100 : 0;
+  // NOTE: We only update correct_answers here, NOT total_questions or percentage.
+  // - total_questions should reflect the ACTUAL total questions in the meeting (will be set on completion)
+  // - percentage will be calculated correctly when the meeting is completed
+  // This prevents incorrect data display in admin dashboard before meeting completion.
 
   db.prepare(
     `
     UPDATE user_meetings 
-    SET total_questions = ?,
-        correct_answers = ?,
-        percentage = ?,
+    SET correct_answers = ?,
         updated_at = ?
     WHERE id = ?
   `,
-  ).run(
-    answers.total,
-    answers.correct,
-    percentage,
-    getJakartaNow(),
-    userMeetingId,
-  );
+  ).run(answers.correct, getJakartaNow(), userMeetingId);
 }
 
 // ==================== TEACHER ROUTES ====================
@@ -971,6 +989,97 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
     res.status(500).json({ error: "Gagal mengambil statistik" });
   }
 });
+
+// Recalculate score for a specific meeting (teacher only)
+app.post(
+  "/api/teacher/meetings/:userMeetingId/recalculate",
+  authenticateTeacher,
+  (req, res) => {
+    const userMeetingId = parseInt(req.params.userMeetingId);
+    const { totalQuestionsActual } = req.body;
+
+    try {
+      // Validate input
+      if (
+        typeof totalQuestionsActual !== "number" ||
+        totalQuestionsActual <= 0
+      ) {
+        return res.status(400).json({
+          error: "totalQuestionsActual harus berupa angka positif",
+        });
+      }
+
+      // Get meeting data
+      const meeting = db
+        .prepare(
+          `
+        SELECT um.*, u.name, u.nim
+        FROM user_meetings um
+        JOIN users u ON um.user_id = u.id
+        WHERE um.id = ?
+      `,
+        )
+        .get(userMeetingId);
+
+      if (!meeting) {
+        return res.status(404).json({ error: "Meeting tidak ditemukan" });
+      }
+
+      // Count correct answers from quiz_answers
+      const answers = db
+        .prepare(
+          `
+        SELECT COUNT(*) as total, SUM(is_correct) as correct 
+        FROM quiz_answers 
+        WHERE user_meeting_id = ?
+      `,
+        )
+        .get(userMeetingId);
+
+      const correctAnswers = answers.correct || 0;
+      const percentage =
+        totalQuestionsActual > 0
+          ? Math.round((correctAnswers / totalQuestionsActual) * 100)
+          : 0;
+
+      // Update meeting with correct values
+      db.prepare(
+        `
+        UPDATE user_meetings 
+        SET total_questions = ?,
+            correct_answers = ?,
+            percentage = ?,
+            updated_at = ?
+        WHERE id = ?
+      `,
+      ).run(
+        totalQuestionsActual,
+        correctAnswers,
+        percentage,
+        getJakartaNow(),
+        userMeetingId,
+      );
+
+      res.json({
+        message: "Score berhasil direcalculate",
+        data: {
+          userMeetingId,
+          studentName: meeting.name,
+          studentNim: meeting.nim,
+          meetingId: meeting.meeting_id,
+          totalQuestionsOld: meeting.total_questions,
+          totalQuestionsNew: totalQuestionsActual,
+          correctAnswers,
+          percentageOld: meeting.percentage,
+          percentageNew: percentage,
+        },
+      });
+    } catch (error) {
+      console.error("Recalculate score error:", error);
+      res.status(500).json({ error: "Gagal recalculate score" });
+    }
+  },
+);
 
 // ==================== START SERVER ====================
 

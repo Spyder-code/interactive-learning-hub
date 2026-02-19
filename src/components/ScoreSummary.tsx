@@ -1,11 +1,12 @@
 import { FiAward, FiCheckCircle, FiXCircle, FiTarget } from "react-icons/fi";
-import { slides } from "@/data/slides";
+import { Slide } from "@/data/slides";
 
 interface ScoreSummaryProps {
   quizResults: Record<string, boolean>; // "slideId-qIndex" -> correct
+  slides: Slide[]; // Add slides as a prop
 }
 
-const ScoreSummary = ({ quizResults }: ScoreSummaryProps) => {
+const ScoreSummary = ({ quizResults, slides }: ScoreSummaryProps) => {
   // Count total quiz questions across all slides
   const quizSlides = slides.filter((s) => s.quiz && s.quiz.length > 0);
   let totalQuestions = 0;

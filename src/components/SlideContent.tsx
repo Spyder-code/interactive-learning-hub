@@ -16,6 +16,7 @@ import {
 
 interface SlideContentProps {
   slide: Slide;
+  slides: Slide[]; // All slides for score calculation
   onQuizAnswer?: (
     slideId: number,
     questionIndex: number,
@@ -49,6 +50,7 @@ const typeConfig = {
 
 const SlideContent = ({
   slide,
+  slides,
   onQuizAnswer,
   quizResults,
   isLastSlide,
@@ -366,7 +368,7 @@ const SlideContent = ({
               Skor Akhir Kamu
             </h3>
           </div>
-          <ScoreSummary quizResults={quizResults} />
+          <ScoreSummary quizResults={quizResults} slides={slides} />
         </div>
       )}
 

@@ -49,6 +49,7 @@ import {
   FiArrowLeft,
   FiEye,
   FiDownload,
+  FiRefreshCw,
 } from "react-icons/fi";
 
 interface Student {
@@ -136,6 +137,7 @@ const TeacherDashboard = () => {
   );
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<TaskUpload | null>(null);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const navigate = useNavigate();
@@ -331,6 +333,84 @@ const TeacherDashboard = () => {
     setMeetingDetail(null);
   };
 
+  const handleRecalculateScore = async () => {
+    if (!selectedMeeting || !meetingDetail) return;
+
+    try {
+      setRecalculating(true);
+
+      // Get the meeting definition to find total questions
+      const meetingId = getMeetingId(selectedMeeting.meeting_id);
+      const meeting = meetings.find((m) => m.id === meetingId);
+
+      if (!meeting) {
+        toast({
+          title: "Error",
+          description: "Meeting definition tidak ditemukan",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Calculate total questions from all quiz slides
+      const quizSlides = meeting.slides.filter(
+        (s) => s.quiz && s.quiz.length > 0,
+      );
+      let totalQuestionsActual = 0;
+      quizSlides.forEach((s) => {
+        totalQuestionsActual += s.quiz!.length;
+      });
+
+      if (totalQuestionsActual === 0) {
+        toast({
+          title: "Error",
+          description: "Meeting ini tidak memiliki soal quiz",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Call recalculate API
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `https://ictapi.zhaf.my.id/api/teacher/meetings/${meetingDetail.meeting.id}/recalculate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ totalQuestionsActual }),
+        },
+      );
+
+      if (!res.ok) throw new Error("Failed to recalculate score");
+
+      const data = await res.json();
+
+      toast({
+        title: "Berhasil!",
+        description: `Score berhasil direcalculate: ${data.data.percentageOld.toFixed(1)}% → ${data.data.percentageNew.toFixed(1)}%`,
+      });
+
+      // Reload meeting detail
+      if (selectedStudent) {
+        await loadMeetingDetail(selectedStudent.id, selectedMeeting.meeting_id);
+        await loadStudentMeetings(selectedStudent.id);
+        await loadData();
+      }
+    } catch (error) {
+      console.error("Recalculate score error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal recalculate score",
+        variant: "destructive",
+      });
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   const handleLogout = () => {
     authAPI.logout();
     navigate("/login");
@@ -494,13 +574,33 @@ const TeacherDashboard = () => {
                             {selectedStudent.name} ({selectedStudent.nim})
                           </CardDescription>
                         </div>
-                        <Button
-                          variant="outline"
-                          onClick={handleBackToMeetings}
-                        >
-                          <FiArrowLeft className="mr-2" />
-                          Kembali ke Daftar Meeting
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRecalculateScore}
+                            disabled={
+                              recalculating || !selectedMeeting.is_completed
+                            }
+                            title={
+                              !selectedMeeting.is_completed
+                                ? "Meeting harus selesai dulu untuk recalculate"
+                                : "Recalculate score berdasarkan total soal yang benar"
+                            }
+                          >
+                            <FiRefreshCw
+                              className={`mr-2 ${recalculating ? "animate-spin" : ""}`}
+                            />
+                            {recalculating ? "Syncing..." : "Sync Score"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleBackToMeetings}
+                          >
+                            <FiArrowLeft className="mr-2" />
+                            Kembali
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -520,15 +620,30 @@ const TeacherDashboard = () => {
                         <div>
                           <p className="text-sm text-muted-foreground">Skor</p>
                           <p className="font-semibold text-lg">
-                            <Badge
-                              variant={
-                                selectedMeeting.percentage >= 70
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {selectedMeeting.percentage.toFixed(1)}%
-                            </Badge>
+                            {selectedMeeting.is_completed ? (
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={
+                                    selectedMeeting.percentage > 100
+                                      ? "destructive"
+                                      : selectedMeeting.percentage >= 70
+                                        ? "default"
+                                        : "secondary"
+                                  }
+                                >
+                                  {selectedMeeting.percentage.toFixed(1)}%
+                                </Badge>
+                                {selectedMeeting.percentage > 100 && (
+                                  <span className="text-xs text-destructive">
+                                    ⚠️ Perlu sync
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">
+                                Belum selesai
+                              </span>
+                            )}
                           </p>
                         </div>
                         <div>
@@ -544,8 +659,9 @@ const TeacherDashboard = () => {
                             Benar / Total Soal
                           </p>
                           <p className="font-semibold">
-                            {selectedMeeting.correct_answers} /{" "}
-                            {selectedMeeting.total_questions}
+                            {selectedMeeting.is_completed
+                              ? `${selectedMeeting.correct_answers} / ${selectedMeeting.total_questions}`
+                              : "Belum selesai"}
                           </p>
                         </div>
                       </div>
@@ -880,18 +996,41 @@ const TeacherDashboard = () => {
                               <TableCell>
                                 Slide {meeting.last_slide_index + 1}
                               </TableCell>
-                              <TableCell>{meeting.total_questions}</TableCell>
-                              <TableCell>{meeting.correct_answers}</TableCell>
                               <TableCell>
-                                <Badge
-                                  variant={
-                                    meeting.percentage >= 70
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                >
-                                  {meeting.percentage.toFixed(1)}%
-                                </Badge>
+                                {meeting.is_completed
+                                  ? meeting.total_questions
+                                  : "-"}
+                              </TableCell>
+                              <TableCell>
+                                {meeting.is_completed
+                                  ? meeting.correct_answers
+                                  : "-"}
+                              </TableCell>
+                              <TableCell>
+                                {meeting.is_completed ? (
+                                  <div className="flex items-center gap-1">
+                                    <Badge
+                                      variant={
+                                        meeting.percentage > 100
+                                          ? "destructive"
+                                          : meeting.percentage >= 70
+                                            ? "default"
+                                            : "secondary"
+                                      }
+                                    >
+                                      {meeting.percentage.toFixed(1)}%
+                                    </Badge>
+                                    {meeting.percentage > 100 && (
+                                      <span className="text-xs text-destructive">
+                                        ⚠️
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">
+                                    -
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {meeting.is_completed ? (
