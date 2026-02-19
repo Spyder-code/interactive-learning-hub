@@ -1,4 +1,4 @@
-import { meetings, getMeetingId } from "@/data/meetings";
+import { meetings } from "@/data/meetings";
 import { useNavigate } from "react-router-dom";
 import {
   FiMonitor,
@@ -42,17 +42,9 @@ const MeetingSelect = () => {
       try {
         const status = await meetingAPI.getAllMeetingsStatus();
 
-        // Convert integer keys to string meeting IDs
-        // API returns: { 1: {...}, 2: {...} }
-        // Convert to: { "pertemuan-1": {...}, "pertemuan-2": {...} }
-        const convertedStatus: Record<string, MeetingStatus> = {};
-        Object.keys(status).forEach((key) => {
-          const meetingNumber = parseInt(key);
-          const meetingId = getMeetingId(meetingNumber);
-          convertedStatus[meetingId] = status[key];
-        });
-
-        setMeetingsStatus(convertedStatus);
+        // API returns status with integer keys matching meeting numbers
+        // No conversion needed - use directly
+        setMeetingsStatus(status);
       } catch (error) {
         console.error("Failed to load meetings status:", error);
         toast({
