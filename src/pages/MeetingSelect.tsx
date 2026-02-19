@@ -169,7 +169,7 @@ const MeetingSelect = () => {
     );
     if (!previousMeeting) return { unlocked: false, reason: "no-access" };
 
-    const previousStatus = meetingsStatus[previousMeeting.id];
+    const previousStatus = meetingsStatus[previousMeeting.number];
     if (!previousStatus?.isCompleted) {
       return {
         unlocked: false,
@@ -276,7 +276,7 @@ const MeetingSelect = () => {
         ) : (
           <div className="space-y-4">
             {meetings.map((m) => {
-              const status = meetingsStatus[m.id];
+              const status = meetingsStatus[m.number];
               const isCompleted = status?.isCompleted || false;
               const accessCheck = isMeetingUnlocked(m.number);
               const isUnlocked = accessCheck.unlocked;

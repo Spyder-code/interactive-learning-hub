@@ -132,7 +132,7 @@ const Index = () => {
 
       try {
         const allStatus = await meetingAPI.getAllMeetingsStatus();
-        const previousStatus = allStatus[previousMeeting.id];
+        const previousStatus = allStatus[previousMeeting.number];
 
         if (!previousStatus || !previousStatus.isCompleted) {
           toast({
