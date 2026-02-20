@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { authAPI } from "@/services/api";
+import { authAPI, teacherAPI } from "@/services/api";
 import { meetings, getMeetingId } from "@/data/meetings";
 import {
   Card,
@@ -10,6 +10,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -50,6 +51,7 @@ import {
   FiEye,
   FiDownload,
   FiRefreshCw,
+  FiSearch,
 } from "react-icons/fi";
 
 interface Student {
@@ -60,6 +62,19 @@ interface Student {
   total_meetings?: number;
   completed_meetings?: number;
   avg_score?: number;
+  final_score?: number;
+  score_breakdown?: {
+    score1to5: number;
+    score6to11: number;
+    score12to14: number;
+    score15to16: number;
+    score17to18: number;
+    score19: number;
+    score20: number;
+    attendanceScore: number;
+  };
+  attendances?: { meeting_id: number; is_present: boolean }[];
+  meeting_progress?: { meeting_id: number; percentage: number; is_completed: number }[];
 }
 
 interface Meeting {
@@ -128,6 +143,7 @@ interface Statistics {
 
 const TeacherDashboard = () => {
   const [students, setStudents] = useState<Student[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentMeetings, setStudentMeetings] = useState<Meeting[]>([]);
@@ -155,34 +171,13 @@ const TeacherDashboard = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
 
       // Load students summary
-      const studentsRes = await fetch(
-        "https://ictapi.zhaf.my.id/api/teacher/students/summary",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!studentsRes.ok) throw new Error("Failed to fetch students");
-      const studentsData = await studentsRes.json();
+      const studentsData = await teacherAPI.getStudents();
       setStudents(studentsData);
 
       // Load statistics
-      const statsRes = await fetch(
-        "https://ictapi.zhaf.my.id/api/teacher/statistics",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!statsRes.ok) throw new Error("Failed to fetch statistics");
-      const statsData = await statsRes.json();
+      const statsData = await teacherAPI.getStatistics();
       setStatistics(statsData);
     } catch (error) {
       console.error("Load data error:", error);
@@ -198,18 +193,7 @@ const TeacherDashboard = () => {
 
   const loadStudentMeetings = async (studentId: number) => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        `https://ictapi.zhaf.my.id/api/teacher/students/${studentId}/meetings`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch meetings");
-      const data = await res.json();
+      const data = await teacherAPI.getStudentMeetings(studentId);
       setStudentMeetings(data);
     } catch (error) {
       console.error("Load meetings error:", error);
@@ -227,19 +211,8 @@ const TeacherDashboard = () => {
   ) => {
     try {
       setLoadingDetail(true);
-      const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        `https://ictapi.zhaf.my.id/api/teacher/students/${studentId}/meetings/${meetingNumber}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch meeting detail");
-      const data = await res.json();
+      const data = await teacherAPI.getStudentMeetingDetail(studentId, meetingNumber);
 
       // Debug logging
       console.log("=== Meeting Detail Debug ===");
@@ -371,22 +344,7 @@ const TeacherDashboard = () => {
       }
 
       // Call recalculate API
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        `https://ictapi.zhaf.my.id/api/teacher/meetings/${meetingDetail.meeting.id}/recalculate`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ totalQuestionsActual }),
-        },
-      );
-
-      if (!res.ok) throw new Error("Failed to recalculate score");
-
-      const data = await res.json();
+      const data = await teacherAPI.recalculateScore(meetingDetail.meeting.id, totalQuestionsActual);
 
       toast({
         title: "Berhasil!",
@@ -408,6 +366,27 @@ const TeacherDashboard = () => {
       });
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  const handleDownloadDatabase = async () => {
+    try {
+      toast({
+        title: "Mendownload...",
+        description: "Sedang mengunduh file database.sqlite",
+      });
+      await teacherAPI.downloadDatabase();
+      toast({
+        title: "Berhasil!",
+        description: "Database berhasil diunduh",
+      });
+    } catch (error) {
+      console.error("Download database error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengunduh database",
+        variant: "destructive",
+      });
     }
   };
 
@@ -450,6 +429,12 @@ const TeacherDashboard = () => {
 
   const user = authAPI.getCurrentUser();
 
+  const filteredStudents = students.filter(
+    (student) =>
+      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.nim.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       {/* Header */}
@@ -465,10 +450,16 @@ const TeacherDashboard = () => {
                 <p className="text-sm text-muted-foreground">{user?.name}</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <FiLogOut className="mr-2" />
-              Logout
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleDownloadDatabase}>
+                <FiDownload className="mr-2" />
+                Download DB
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <FiLogOut className="mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -549,6 +540,10 @@ const TeacherDashboard = () => {
             <TabsTrigger value="students">
               <FiUsers className="mr-2" />
               Daftar Mahasiswa
+            </TabsTrigger>
+            <TabsTrigger value="progress">
+              <FiBarChart2 className="mr-2" />
+              Progress Meeting
             </TabsTrigger>
             <TabsTrigger value="activity">
               <FiActivity className="mr-2" />
@@ -942,26 +937,66 @@ const TeacherDashboard = () => {
                 </div>
               ) : (
                 // Meeting List View
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>
-                          Detail Mahasiswa: {selectedStudent.name}
-                        </CardTitle>
-                        <CardDescription>
-                          NIM: {selectedStudent.nim}
-                        </CardDescription>
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>
+                            Detail Mahasiswa: {selectedStudent.name}
+                          </CardTitle>
+                          <CardDescription>
+                            NIM: {selectedStudent.nim}
+                          </CardDescription>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => setSelectedStudent(null)}
+                        >
+                          Kembali
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedStudent(null)}
-                      >
-                        Kembali
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3">Absensi Manual (Kehadiran)</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2">
+                          {Array.from({ length: 20 }, (_, i) => i + 1).map((meetingNumber) => {
+                            const isPresent = selectedStudent.attendances?.some(
+                              (a) => a.meeting_id === meetingNumber && a.is_present
+                            );
+                            
+                            return (
+                              <button
+                                key={`att-${meetingNumber}`}
+                                onClick={async () => {
+                                  try {
+                                    const nextState = !isPresent;
+                                    // Optimistic local update
+                                    const updatedAttendances = selectedStudent.attendances || [];
+                                    const filtered = updatedAttendances.filter(a => a.meeting_id !== meetingNumber);
+                                    filtered.push({ meeting_id: meetingNumber, is_present: nextState });
+                                    setSelectedStudent({...selectedStudent, attendances: filtered});
+                                    
+                                    await teacherAPI.updateAttendance(selectedStudent.id, meetingNumber, nextState);
+                                    await loadData();
+                                  } catch (e) {
+                                    toast({ title: "Gagal", description: "Gagal memperbarui absensi", variant: "destructive" });
+                                  }
+                                }}
+                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition-colors ${
+                                  isPresent ? "bg-primary/20 border-primary/50 text-primary hover:bg-primary/30" : "bg-card hover:bg-muted"
+                                }`}
+                              >
+                                <span className="text-xs font-medium">M {meetingNumber}</span>
+                                {isPresent ? <FiCheckCircle className="mt-1" size={14} /> : <FiCircle className="mt-1 text-muted-foreground" size={14} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <h3 className="text-lg font-semibold mb-3">Riwayat Pertemuan</h3>
                     {studentMeetings.length === 0 ? (
                       <p className="text-center text-muted-foreground py-8">
                         Belum ada meeting yang dikerjakan
@@ -1057,6 +1092,7 @@ const TeacherDashboard = () => {
                     )}
                   </CardContent>
                 </Card>
+                </div>
               )
             ) : (
               <Card>
@@ -1067,6 +1103,15 @@ const TeacherDashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-4 flex items-center gap-2">
+                    <FiSearch className="text-muted-foreground" />
+                    <Input
+                      placeholder="Cari mahasiswa berdasarkan Nama atau NIM..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1074,12 +1119,13 @@ const TeacherDashboard = () => {
                         <TableHead>Nama</TableHead>
                         <TableHead>Meeting Diikuti</TableHead>
                         <TableHead>Meeting Selesai</TableHead>
-                        <TableHead>Rata-rata Skor</TableHead>
+                        <TableHead>Rata-rata Quiz</TableHead>
+                        <TableHead>Nilai Akhir</TableHead>
                         <TableHead>Aksi</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {students.map((student) => (
+                      {filteredStudents.map((student) => (
                         <TableRow key={student.id}>
                           <TableCell className="font-medium">
                             {student.nim}
@@ -1090,7 +1136,7 @@ const TeacherDashboard = () => {
                             {student.completed_meetings || 0}
                           </TableCell>
                           <TableCell>
-                            {student.avg_score ? (
+                            {student.avg_score !== undefined ? (
                               <Badge
                                 variant={
                                   student.avg_score >= 70
@@ -1099,6 +1145,23 @@ const TeacherDashboard = () => {
                                 }
                               >
                                 {student.avg_score.toFixed(1)}%
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {student.final_score !== undefined ? (
+                              <Badge
+                                variant={
+                                  student.final_score >= 70
+                                    ? "default"
+                                    : "secondary"
+                                }
+                                title={`M 1-5: ${student.score_breakdown?.score1to5.toFixed(1)}\nM 6-11: ${student.score_breakdown?.score6to11.toFixed(1)}\nM 12-14: ${student.score_breakdown?.score12to14.toFixed(1)}\nM 15-16: ${student.score_breakdown?.score15to16.toFixed(1)}\nM 17-18: ${student.score_breakdown?.score17to18.toFixed(1)}\nM 19: ${student.score_breakdown?.score19.toFixed(1)}\nM 20: ${student.score_breakdown?.score20.toFixed(1)}\nAbsensi: ${student.score_breakdown?.attendanceScore.toFixed(1)}`}
+                                className="cursor-help"
+                              >
+                                {student.final_score.toFixed(1)}
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -1120,6 +1183,63 @@ const TeacherDashboard = () => {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="progress" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Progress Meeting Mahasiswa</CardTitle>
+                <CardDescription>
+                  Nilai per pertemuan dari tiap mahasiswa
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 flex items-center gap-2">
+                  <FiSearch className="text-muted-foreground" />
+                  <Input
+                    placeholder="Cari mahasiswa berdasarkan Nama atau NIM..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-max relative border-collapse">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="sticky left-0 bg-background z-10 w-[120px] shadow-[1px_0_0_0_hsl(var(--border))]">NIM</TableHead>
+                        <TableHead className="sticky left-[120px] bg-background z-10 w-[200px] shadow-[1px_0_0_0_hsl(var(--border))]">Nama</TableHead>
+                        {Array.from({ length: 20 }, (_, i) => i + 1).map((m) => (
+                          <TableHead key={m} className="text-center min-w-[80px]">M {m}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredStudents.map((student) => (
+                        <TableRow key={student.id}>
+                          <TableCell className="sticky left-0 bg-background font-medium shadow-[1px_0_0_0_hsl(var(--border))]">{student.nim}</TableCell>
+                          <TableCell className="sticky left-[120px] bg-background shadow-[1px_0_0_0_hsl(var(--border))]">{student.name}</TableCell>
+                          {Array.from({ length: 20 }, (_, i) => i + 1).map((m) => {
+                            const prog = student.meeting_progress?.find((p) => p.meeting_id === m);
+                            return (
+                              <TableCell key={m} className="text-center">
+                                {prog && prog.is_completed ? (
+                                  <Badge variant={prog.percentage >= 70 ? "default" : "secondary"}>
+                                    {Math.round(prog.percentage)}%
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="activity">

@@ -30,8 +30,6 @@ export const authAPI = {
     }
 
     const data = await response.json();
-    // Clear quiz storage sebelum login untuk menghapus data user sebelumnya
-    localStorage.removeItem("quiz-storage");
     localStorage.setItem("token", data.token);
     localStorage.setItem("auth_token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
@@ -69,8 +67,6 @@ export const authAPI = {
     localStorage.removeItem("token");
     localStorage.removeItem("auth_token");
     localStorage.removeItem("user");
-    // Clear quiz storage untuk menghapus data mahasiswa sebelumnya
-    localStorage.removeItem("quiz-storage");
   },
 
   getCurrentUser() {
@@ -121,6 +117,18 @@ export const meetingAPI = {
     return response.json();
   },
 
+  async getMyAttendances() {
+    const response = await fetch(`${API_BASE_URL}/attendances/me`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil status absensi");
+    }
+
+    return response.json();
+  },
+
   async saveQuizAnswer(
     meetingNumber: number,
     slideId: number,
@@ -162,13 +170,13 @@ export const meetingAPI = {
     formData.append("slideId", slideId.toString());
     formData.append("taskIndex", taskIndex.toString());
 
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     const response = await fetch(
       `${API_BASE_URL}/meetings/${meetingNumber}/task`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(token && { Authorization: `Bearer ${token}` }),
           // Don't set Content-Type header - browser will set it with boundary
         },
         body: formData,
@@ -331,6 +339,63 @@ export const teacherAPI = {
 
     if (!response.ok) {
       throw new Error("Gagal mengambil laporan meeting");
+    }
+
+    return response.json();
+  },
+
+  async recalculateScore(meetingId: number, totalQuestionsActual: number) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/meetings/${meetingId}/recalculate`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ totalQuestionsActual }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal recalculate score");
+    }
+
+    return response.json();
+  },
+
+  async downloadDatabase() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/database/download`,
+      {
+        headers: getAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengunduh database");
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "database.sqlite";
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  async updateAttendance(studentId: number, meetingId: number, isPresent: boolean) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/${studentId}/attendance/${meetingId}`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ is_present: isPresent }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengupdate absensi");
     }
 
     return response.json();

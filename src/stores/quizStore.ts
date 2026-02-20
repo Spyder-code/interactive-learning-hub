@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 // Interface untuk jawaban quiz
 interface QuizAnswer {
@@ -109,13 +108,12 @@ interface QuizState {
 }
 
 export const useQuizStore = create<QuizState>()(
-  persist(
-    (set, get) => ({
-      answers: {},
-      uploads: {},
-      maxSlideReached: {},
-      meetingHistory: {},
-      meetingStartTimes: {},
+  (set, get) => ({
+    answers: {},
+    uploads: {},
+    maxSlideReached: {},
+    meetingHistory: {},
+    meetingStartTimes: {},
 
       saveAnswer: (
         slideId,
@@ -357,10 +355,5 @@ export const useQuizStore = create<QuizState>()(
           meetingStartTimes: {},
         });
       },
-    }),
-    {
-      name: "quiz-storage", // nama key di localStorage
-      version: 6, // Increment version for timer fields (startDateTime, endDateTime, durationMinutes)
-    },
-  ),
+    })
 );

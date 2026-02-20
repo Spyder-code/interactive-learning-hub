@@ -34,17 +34,20 @@ const MeetingSelect = () => {
   const [meetingsStatus, setMeetingsStatus] = useState<
     Record<string, MeetingStatus>
   >({});
+  const [attendances, setAttendances] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadMeetingsStatus = async () => {
+    const loadData = async () => {
       setIsLoading(true);
       try {
-        const status = await meetingAPI.getAllMeetingsStatus();
+        const [status, att] = await Promise.all([
+          meetingAPI.getAllMeetingsStatus(),
+          meetingAPI.getMyAttendances()
+        ]);
 
-        // API returns status with integer keys matching meeting numbers
-        // No conversion needed - use directly
         setMeetingsStatus(status);
+        setAttendances(att);
       } catch (error) {
         console.error("Failed to load meetings status:", error);
         toast({
@@ -57,7 +60,7 @@ const MeetingSelect = () => {
       }
     };
 
-    loadMeetingsStatus();
+    loadData();
   }, [toast]);
 
   const handleLogout = () => {
@@ -258,9 +261,51 @@ const MeetingSelect = () => {
       </header>
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
-        <h2 className="text-2xl font-extrabold text-foreground mb-6">
-          Pilih Pertemuan
-        </h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6">
+          <h2 className="text-2xl font-extrabold text-foreground">
+            Pilih Pertemuan
+          </h2>
+          {!isLoading && (
+            <div className="mt-4 sm:mt-0 px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl flex items-center gap-4">
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Absensi</span>
+                <span className="font-bold text-primary">{Object.values(attendances).filter(Boolean).length} / 20</span>
+              </div>
+              <div className="w-px h-8 bg-primary/20"></div>
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Nilai Akhir</span>
+                <span className="font-bold text-primary">
+                  {(() => {
+                    const getAvg = (start: number, end: number) => {
+                      let sum = 0;
+                      const expectedCount = end - start + 1;
+                      for (let i = start; i <= end; i++) {
+                          const m = meetingsStatus[i];
+                          if (m && m.isCompleted) sum += m.percentage;
+                      }
+                      return sum / expectedCount;
+                    };
+                    const getExact = (id: number) => {
+                      const m = meetingsStatus[id];
+                      return m && m.isCompleted ? m.percentage : 0;
+                    };
+                    const score = (
+                      (getAvg(1, 5) * 0.10) +
+                      (getAvg(6, 11) * 0.10) +
+                      (getAvg(12, 14) * 0.10) +
+                      (getAvg(15, 16) * 0.10) +
+                      (getAvg(17, 18) * 0.10) +
+                      (getExact(19) * 0.30) +
+                      (getExact(20) * 0.10) +
+                      ((Math.min(Object.values(attendances).filter(Boolean).length, 20) / 20) * 10)
+                    );
+                    return score.toFixed(1);
+                  })()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">
             Memuat data pertemuan...

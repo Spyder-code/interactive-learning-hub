@@ -96,6 +96,19 @@ function initializeDatabase() {
     )
   `);
 
+  // Tabel attendances (menyimpan absensi per meeting secara manual oleh teacher)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS attendances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      meeting_id INTEGER NOT NULL,
+      is_present BOOLEAN DEFAULT 0,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, meeting_id)
+    )
+  `);
+
   console.log("✅ Database initialized successfully");
 
   // Insert default users jika belum ada

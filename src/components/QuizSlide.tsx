@@ -78,7 +78,7 @@ const QuizSlide = ({
     setAnswers((prev) => ({ ...prev, [qIndex]: label }));
     setRevealed((prev) => ({ ...prev, [qIndex]: true }));
 
-    // Simpan ke store dan localStorage
+    // Simpan ke store
     saveAnswer(slideId, qIndex, label, isCorrect, "multiple-choice");
 
     // Trigger callback
@@ -102,7 +102,7 @@ const QuizSlide = ({
     setAnswers((prev) => ({ ...prev, [qIndex]: userAnswer }));
     setRevealed((prev) => ({ ...prev, [qIndex]: true }));
 
-    // Simpan ke store dan localStorage
+    // Simpan ke store
     saveAnswer(slideId, qIndex, userAnswer, isCorrect, "free-text");
 
     // Trigger callback
