@@ -9,6 +9,8 @@ import {
   FiLogOut,
   FiUser,
   FiLock,
+  FiChevronDown,
+  FiClipboard,
 } from "react-icons/fi";
 import { authAPI, meetingAPI } from "@/services/api";
 import { useQuizStore } from "@/stores/quizStore";
@@ -36,6 +38,7 @@ const MeetingSelect = () => {
   >({});
   const [attendances, setAttendances] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [showAttendance, setShowAttendance] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -306,6 +309,66 @@ const MeetingSelect = () => {
             </div>
           )}
         </div>
+
+        {/* Attendance Status Panel */}
+        {!isLoading && (
+          <div className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
+            <button
+              onClick={() => setShowAttendance((v) => !v)}
+              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <FiClipboard size={16} className="text-primary" />
+                <span className="text-sm font-bold text-foreground">Status Absensi</span>
+                <span className={`ml-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  Object.values(attendances).filter(Boolean).length >= 14
+                    ? "bg-success/15 text-success"
+                    : Object.values(attendances).filter(Boolean).length >= 10
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                    : "bg-destructive/10 text-destructive"
+                }`}>
+                  {Object.values(attendances).filter(Boolean).length}/20 Hadir
+                </span>
+              </div>
+              <FiChevronDown
+                size={16}
+                className={`text-muted-foreground transition-transform duration-200 ${showAttendance ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {showAttendance && (
+              <div className="px-5 pb-5 pt-1 border-t border-border">
+                <p className="text-xs text-muted-foreground mb-3 mt-2">
+                  Status kehadiran Anda per pertemuan. Dikelola oleh dosen.
+                </p>
+                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map((meetingNum) => {
+                    const isPresent = attendances[meetingNum] === true;
+                    return (
+                      <div
+                        key={meetingNum}
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-colors ${
+                          isPresent
+                            ? "bg-success/10 border-success/30 text-success"
+                            : "bg-muted/30 border-border text-muted-foreground"
+                        }`}
+                        title={isPresent ? `Pertemuan ${meetingNum}: Hadir` : `Pertemuan ${meetingNum}: Tidak Hadir`}
+                      >
+                        <span className="text-xs font-bold leading-tight">P{meetingNum}</span>
+                        {isPresent ? (
+                          <FiCheckCircle size={14} className="mt-1 text-success" />
+                        ) : (
+                          <span className="mt-1 w-3.5 h-3.5 rounded-full border-2 border-muted-foreground/40 block" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">
             Memuat data pertemuan...
