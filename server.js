@@ -99,7 +99,34 @@ const upload = multer({
 });
 
 // Middleware
-app.use(cors());
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+
+    // List of allowed origins
+    const allowedOrigins = [
+      "https://ict.zhaf.my.id",
+      "https://ict.mediku.my.id",
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ];
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
+  maxAge: 600, // Cache preflight requests for 10 minutes
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Serve uploaded files statically from storage directory
@@ -274,13 +301,13 @@ app.get("/api/attendances/me", authenticateToken, (req, res) => {
       SELECT meeting_id, is_present
       FROM attendances 
       WHERE user_id = ?
-    `
+    `,
       )
       .all(req.user.id);
-    
+
     const attendanceMap = {};
-    attendances.forEach(a => {
-        attendanceMap[a.meeting_id] = a.is_present === 1;
+    attendances.forEach((a) => {
+      attendanceMap[a.meeting_id] = a.is_present === 1;
     });
 
     res.json(attendanceMap);
@@ -770,7 +797,7 @@ function updateMeetingStats(userMeetingId) {
 app.get("/api/teacher/database/download", authenticateTeacher, (req, res) => {
   try {
     const dbPath = path.join(__dirname, "database.sqlite");
-    
+
     if (!fs.existsSync(dbPath)) {
       return res.status(404).json({ error: "Database file not found" });
     }
@@ -785,7 +812,9 @@ app.get("/api/teacher/database/download", authenticateTeacher, (req, res) => {
     });
   } catch (error) {
     console.error("Download database error:", error);
-    res.status(500).json({ error: "Terjadi kesalahan sistem saat mengunduh database" });
+    res
+      .status(500)
+      .json({ error: "Terjadi kesalahan sistem saat mengunduh database" });
   }
 });
 
@@ -833,7 +862,7 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
         `
         SELECT user_id, meeting_id, percentage, is_completed 
         FROM user_meetings
-      `
+      `,
       )
       .all();
 
@@ -842,44 +871,62 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
         `
         SELECT user_id, meeting_id, is_present 
         FROM attendances
-        `
+        `,
       )
       .all();
 
-    const students = studentsRaw.map(student => {
-      const userMeetings = allMeetings.filter(m => m.user_id === student.id);
-      
+    const students = studentsRaw.map((student) => {
+      const userMeetings = allMeetings.filter((m) => m.user_id === student.id);
+
       const getAvg = (start, end) => {
         let sum = 0;
         const expectedCount = end - start + 1;
         for (let i = start; i <= end; i++) {
-            const m = userMeetings.find(um => um.meeting_id === i && um.is_completed);
-            if (m) sum += m.percentage;
+          const m = userMeetings.find(
+            (um) => um.meeting_id === i && um.is_completed,
+          );
+          if (m) sum += m.percentage;
         }
         return sum / expectedCount;
       };
 
       const getPercentageForMeeting = (id) => {
-         const m = userMeetings.find(um => um.meeting_id === id && um.is_completed);
-         return m ? m.percentage : 0;
+        const m = userMeetings.find(
+          (um) => um.meeting_id === id && um.is_completed,
+        );
+        return m ? m.percentage : 0;
       };
 
-      const score1to5 = getAvg(1, 5) * 0.10;
-      const score6to11 = getAvg(6, 11) * 0.10;
-      const score12to14 = getAvg(12, 14) * 0.10;
-      const score15to16 = getAvg(15, 16) * 0.10;
-      const score17to18 = getAvg(17, 18) * 0.10;
-      const score19 = getPercentageForMeeting(19) * 0.30;
-      const score20 = getPercentageForMeeting(20) * 0.10;
+      const score1to5 = getAvg(1, 5) * 0.1;
+      const score6to11 = getAvg(6, 11) * 0.1;
+      const score12to14 = getAvg(12, 14) * 0.1;
+      const score15to16 = getAvg(15, 16) * 0.1;
+      const score17to18 = getAvg(17, 18) * 0.1;
+      const score19 = getPercentageForMeeting(19) * 0.3;
+      const score20 = getPercentageForMeeting(20) * 0.1;
 
-      const completedCount = userMeetings.filter(m => m.is_completed).length;
-      const presentCount = allAttendances.filter(a => a.user_id === student.id && a.is_present).length;
-      const attendanceScore = (Math.min(presentCount, 20) / 20) * 100 * 0.10;
+      const completedCount = userMeetings.filter((m) => m.is_completed).length;
+      const presentCount = allAttendances.filter(
+        (a) => a.user_id === student.id && a.is_present,
+      ).length;
+      const attendanceScore = (Math.min(presentCount, 20) / 20) * 100 * 0.1;
 
-      const finalScore = score1to5 + score6to11 + score12to14 + score15to16 + score17to18 + score19 + score20 + attendanceScore;
+      const finalScore =
+        score1to5 +
+        score6to11 +
+        score12to14 +
+        score15to16 +
+        score17to18 +
+        score19 +
+        score20 +
+        attendanceScore;
 
-      const completedList = userMeetings.filter(m => m.is_completed);
-      const oldAvg = completedList.length > 0 ? completedList.reduce((a,b)=>a+b.percentage, 0) / completedList.length : 0;
+      const completedList = userMeetings.filter((m) => m.is_completed);
+      const oldAvg =
+        completedList.length > 0
+          ? completedList.reduce((a, b) => a + b.percentage, 0) /
+            completedList.length
+          : 0;
 
       return {
         id: student.id,
@@ -899,10 +946,16 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
           score17to18,
           score19,
           score20,
-          attendanceScore
+          attendanceScore,
         },
-        attendances: allAttendances.filter(a => a.user_id === student.id).map(a => ({ meeting_id: a.meeting_id, is_present: a.is_present })),
-        meeting_progress: userMeetings.map(m => ({ meeting_id: m.meeting_id, percentage: m.percentage, is_completed: m.is_completed }))
+        attendances: allAttendances
+          .filter((a) => a.user_id === student.id)
+          .map((a) => ({ meeting_id: a.meeting_id, is_present: a.is_present })),
+        meeting_progress: userMeetings.map((m) => ({
+          meeting_id: m.meeting_id,
+          percentage: m.percentage,
+          is_completed: m.is_completed,
+        })),
       };
     });
 
@@ -1076,46 +1129,69 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
       .get().count;
 
     // Calculate avg final score based on new rules
-    const allStudents = db.prepare("SELECT id FROM users WHERE role = 'student'").all();
-    const allMeetings = db.prepare("SELECT user_id, meeting_id, percentage, is_completed FROM user_meetings").all();
-    const allAttendances = db.prepare("SELECT user_id, meeting_id, is_present FROM attendances").all();
-    
+    const allStudents = db
+      .prepare("SELECT id FROM users WHERE role = 'student'")
+      .all();
+    const allMeetings = db
+      .prepare(
+        "SELECT user_id, meeting_id, percentage, is_completed FROM user_meetings",
+      )
+      .all();
+    const allAttendances = db
+      .prepare("SELECT user_id, meeting_id, is_present FROM attendances")
+      .all();
+
     let totalScoreAll = 0;
-    
-    allStudents.forEach(student => {
-      const userMeetings = allMeetings.filter(m => m.user_id === student.id);
-      
+
+    allStudents.forEach((student) => {
+      const userMeetings = allMeetings.filter((m) => m.user_id === student.id);
+
       const getAvg = (start, end) => {
         let sum = 0;
         const expectedCount = end - start + 1;
         for (let i = start; i <= end; i++) {
-            const m = userMeetings.find(um => um.meeting_id === i && um.is_completed);
-            if (m) sum += m.percentage;
+          const m = userMeetings.find(
+            (um) => um.meeting_id === i && um.is_completed,
+          );
+          if (m) sum += m.percentage;
         }
         return sum / expectedCount;
       };
 
       const getPercentageForMeeting = (id) => {
-         const m = userMeetings.find(um => um.meeting_id === id && um.is_completed);
-         return m ? m.percentage : 0;
+        const m = userMeetings.find(
+          (um) => um.meeting_id === id && um.is_completed,
+        );
+        return m ? m.percentage : 0;
       };
 
-      const score1to5 = getAvg(1, 5) * 0.10;
-      const score6to11 = getAvg(6, 11) * 0.10;
-      const score12to14 = getAvg(12, 14) * 0.10;
-      const score15to16 = getAvg(15, 16) * 0.10;
-      const score17to18 = getAvg(17, 18) * 0.10;
-      const score19 = getPercentageForMeeting(19) * 0.30;
-      const score20 = getPercentageForMeeting(20) * 0.10;
+      const score1to5 = getAvg(1, 5) * 0.1;
+      const score6to11 = getAvg(6, 11) * 0.1;
+      const score12to14 = getAvg(12, 14) * 0.1;
+      const score15to16 = getAvg(15, 16) * 0.1;
+      const score17to18 = getAvg(17, 18) * 0.1;
+      const score19 = getPercentageForMeeting(19) * 0.3;
+      const score20 = getPercentageForMeeting(20) * 0.1;
 
-      const presentCount = allAttendances.filter(a => a.user_id === student.id && a.is_present).length;
-      const attendanceScore = (Math.min(presentCount, 20) / 20) * 100 * 0.10;
+      const presentCount = allAttendances.filter(
+        (a) => a.user_id === student.id && a.is_present,
+      ).length;
+      const attendanceScore = (Math.min(presentCount, 20) / 20) * 100 * 0.1;
 
-      const finalScore = score1to5 + score6to11 + score12to14 + score15to16 + score17to18 + score19 + score20 + attendanceScore;
+      const finalScore =
+        score1to5 +
+        score6to11 +
+        score12to14 +
+        score15to16 +
+        score17to18 +
+        score19 +
+        score20 +
+        attendanceScore;
       totalScoreAll += finalScore;
     });
 
-    const avgScore = allStudents.length > 0 ? (totalScoreAll / allStudents.length) : 0;
+    const avgScore =
+      allStudents.length > 0 ? totalScoreAll / allStudents.length : 0;
 
     const recentActivity = db
       .prepare(
@@ -1250,22 +1326,24 @@ app.post(
 
     try {
       if (typeof is_present !== "boolean") {
-         return res.status(400).json({ error: "is_present must be a boolean" });
+        return res.status(400).json({ error: "is_present must be a boolean" });
       }
 
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO attendances (user_id, meeting_id, is_present) 
         VALUES (?, ?, ?) 
         ON CONFLICT(user_id, meeting_id) 
         DO UPDATE SET is_present = ?, timestamp = CURRENT_TIMESTAMP
-      `).run(studentId, meetingId, is_present ? 1 : 0, is_present ? 1 : 0);
+      `,
+      ).run(studentId, meetingId, is_present ? 1 : 0, is_present ? 1 : 0);
 
       res.json({ message: "Absensi berhasil disimpan" });
     } catch (error) {
       console.error("Update attendance error:", error);
       res.status(500).json({ error: "Gagal menyimpan absensi" });
     }
-  }
+  },
 );
 
 // ==================== START SERVER ====================
