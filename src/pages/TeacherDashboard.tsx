@@ -52,6 +52,7 @@ import {
   FiDownload,
   FiRefreshCw,
   FiSearch,
+  FiClipboard,
 } from "react-icons/fi";
 
 interface Student {
@@ -144,6 +145,7 @@ interface Statistics {
 const TeacherDashboard = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [absensiSearch, setAbsensiSearch] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentMeetings, setStudentMeetings] = useState<Meeting[]>([]);
@@ -156,6 +158,8 @@ const TeacherDashboard = () => {
   const [recalculating, setRecalculating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<TaskUpload | null>(null);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
+  // Track which attendance cell is currently being saved: "studentId-meetingId"
+  const [savingAttendance, setSavingAttendance] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -540,6 +544,10 @@ const TeacherDashboard = () => {
             <TabsTrigger value="students">
               <FiUsers className="mr-2" />
               Daftar Mahasiswa
+            </TabsTrigger>
+            <TabsTrigger value="absensi">
+              <FiClipboard className="mr-2" />
+              Absensi
             </TabsTrigger>
             <TabsTrigger value="progress">
               <FiBarChart2 className="mr-2" />
@@ -1183,6 +1191,151 @@ const TeacherDashboard = () => {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* ── ABSENSI TAB ── */}
+          <TabsContent value="absensi" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FiClipboard className="w-5 h-5" />
+                  Absensi Mahasiswa
+                </CardTitle>
+                <CardDescription>
+                  Klik tombol pertemuan untuk toggle kehadiran. Data tersimpan otomatis ke database.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 flex items-center gap-2">
+                  <FiSearch className="text-muted-foreground" />
+                  <Input
+                    placeholder="Cari mahasiswa berdasarkan Nama atau NIM..."
+                    value={absensiSearch}
+                    onChange={(e) => setAbsensiSearch(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-max border-collapse">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="sticky left-0 bg-background z-10 w-[110px] shadow-[1px_0_0_0_hsl(var(--border))]">
+                          NIM
+                        </TableHead>
+                        <TableHead className="sticky left-[110px] bg-background z-10 w-[180px] shadow-[1px_0_0_0_hsl(var(--border))]">
+                          Nama
+                        </TableHead>
+                        <TableHead className="sticky left-[290px] bg-background z-10 w-[70px] text-center shadow-[1px_0_0_0_hsl(var(--border))]">
+                          Hadir
+                        </TableHead>
+                        {Array.from({ length: 20 }, (_, i) => i + 1).map((m) => (
+                          <TableHead key={m} className="text-center min-w-[60px] px-1">
+                            M{m}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {students
+                        .filter(
+                          (s) =>
+                            s.name.toLowerCase().includes(absensiSearch.toLowerCase()) ||
+                            s.nim.toLowerCase().includes(absensiSearch.toLowerCase())
+                        )
+                        .map((student) => {
+                          const totalHadir = student.attendances?.filter((a) => a.is_present).length ?? 0;
+                          return (
+                            <TableRow key={student.id}>
+                              <TableCell className="sticky left-0 bg-background font-medium shadow-[1px_0_0_0_hsl(var(--border))]">
+                                {student.nim}
+                              </TableCell>
+                              <TableCell className="sticky left-[110px] bg-background shadow-[1px_0_0_0_hsl(var(--border))]">
+                                {student.name}
+                              </TableCell>
+                              <TableCell className="sticky left-[290px] bg-background text-center shadow-[1px_0_0_0_hsl(var(--border))]">
+                                <Badge variant={totalHadir >= 14 ? "default" : totalHadir >= 10 ? "secondary" : "destructive"}>
+                                  {totalHadir}/20
+                                </Badge>
+                              </TableCell>
+                              {Array.from({ length: 20 }, (_, i) => i + 1).map((meetingNum) => {
+                                const isPresent = student.attendances?.some(
+                                  (a) => a.meeting_id === meetingNum && a.is_present
+                                ) ?? false;
+                                const key = `${student.id}-${meetingNum}`;
+                                const isSaving = savingAttendance.has(key);
+                                return (
+                                  <TableCell key={meetingNum} className="text-center px-1">
+                                    <button
+                                      disabled={isSaving}
+                                      onClick={async () => {
+                                        const nextState = !isPresent;
+                                        setSavingAttendance((prev) => new Set(prev).add(key));
+                                        // Optimistic update
+                                        setStudents((prev) =>
+                                          prev.map((s) => {
+                                            if (s.id !== student.id) return s;
+                                            const filtered = (s.attendances || []).filter(
+                                              (a) => a.meeting_id !== meetingNum
+                                            );
+                                            filtered.push({ meeting_id: meetingNum, is_present: nextState });
+                                            return { ...s, attendances: filtered };
+                                          })
+                                        );
+                                        try {
+                                          await teacherAPI.updateAttendance(student.id, meetingNum, nextState);
+                                        } catch {
+                                          // Revert on failure
+                                          setStudents((prev) =>
+                                            prev.map((s) => {
+                                              if (s.id !== student.id) return s;
+                                              const filtered = (s.attendances || []).filter(
+                                                (a) => a.meeting_id !== meetingNum
+                                              );
+                                              filtered.push({ meeting_id: meetingNum, is_present: isPresent });
+                                              return { ...s, attendances: filtered };
+                                            })
+                                          );
+                                          toast({
+                                            title: "Gagal",
+                                            description: "Gagal memperbarui absensi",
+                                            variant: "destructive",
+                                          });
+                                        } finally {
+                                          setSavingAttendance((prev) => {
+                                            const next = new Set(prev);
+                                            next.delete(key);
+                                            return next;
+                                          });
+                                        }
+                                      }}
+                                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all text-xs font-bold border ${
+                                        isSaving
+                                          ? "opacity-50 cursor-not-allowed bg-muted border-muted-foreground/30"
+                                          : isPresent
+                                          ? "bg-green-500 border-green-600 text-white hover:bg-green-600 shadow-sm"
+                                          : "bg-background border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                                      }`}
+                                      title={isPresent ? `Hadir M${meetingNum} — klik untuk absen` : `Tidak hadir M${meetingNum} — klik untuk tandai hadir`}
+                                    >
+                                      {isSaving ? (
+                                        <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
+                                      ) : isPresent ? (
+                                        <FiCheckCircle size={14} />
+                                      ) : (
+                                        <FiCircle size={14} />
+                                      )}
+                                    </button>
+                                  </TableCell>
+                                );
+                              })}
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="progress" className="space-y-4">

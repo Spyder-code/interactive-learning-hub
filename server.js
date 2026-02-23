@@ -111,6 +111,7 @@ const corsOptions = {
       "https://ict.mediku.my.id",
       "http://localhost:5173",
       "http://localhost:3000",
+      "http://localhost:8080",
     ];
 
     if (allowedOrigins.indexOf(origin) !== -1) {
