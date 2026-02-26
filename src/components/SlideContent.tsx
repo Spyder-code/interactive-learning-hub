@@ -101,7 +101,10 @@ const SlideContent = ({
         "application/pdf",
       ];
 
-      if (!allowedTypes.includes(file.type)) {
+      const allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'];
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+
+      if (!allowedTypes.includes(file.type) && !allowedExts.includes(fileExt)) {
         alert(
           "Invalid file type. Only images and office files (Word, Excel, PowerPoint, PDF) are allowed.",
         );
@@ -125,9 +128,18 @@ const SlideContent = ({
           ...prev,
           [taskIndex]: { name: file.name, size: file.size },
         }));
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to upload file:", error);
-        alert("Failed to upload file. Please try again.");
+        
+        let errorMsg = "Please try again.";
+        if (error instanceof Error) {
+          // If the error message is long (e.g. HTML from Nginx), truncate it
+          errorMsg = error.message.substring(0, 150) + (error.message.length > 150 ? "..." : "");
+        } else if (typeof error === "string") {
+          errorMsg = error;
+        }
+        
+        alert(`Failed to upload file: ${errorMsg}`);
       } finally {
         setIsUploading((prev) => ({ ...prev, [taskIndex]: false }));
       }

@@ -184,8 +184,19 @@ export const meetingAPI = {
     );
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Gagal menyimpan task");
+      let errorMessage = "Gagal menyimpan task";
+      try {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } else {
+          errorMessage = await response.text();
+        }
+      } catch (e) {
+        // Fallback if parsing fails
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
