@@ -1,6 +1,6 @@
 import { useQuizStore } from "@/stores/quizStore";
 import { meetingAPI } from "@/services/api";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { getMeetingNumber } from "@/data/meetings";
 
 // Hook untuk mengintegrasikan zustand store dengan backend API
@@ -11,27 +11,25 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
   const store = useQuizStore();
   const [isLoading, setIsLoading] = useState(true);
   const [lastSlideIndex, setLastSlideIndex] = useState<number>(0);
-  const loadedMeetingRef = useRef<string | null>(null);
 
-  // Load data from backend when component mounts or meetingId changes
+  // Load data from backend when component mounts or meetingId changes.
+  // Always fetches fresh data from the server every time meetingId changes
+  // to ensure cross-device sync and up-to-date completion status.
   useEffect(() => {
     if (!meetingId) return;
-
-    // Skip if already loaded for this meetingId
-    if (loadedMeetingRef.current === meetingId) {
-      setIsLoading(false);
-      return;
-    }
 
     const loadMeetingData = async () => {
       setIsLoading(true);
 
-      try {
-        const data = await meetingAPI.getMeeting(meetingNumber);
+      // Bug fix #2: Clear in-memory answers & uploads before loading the new
+      // meeting so that stale data from a previously-visited meeting cannot
+      // "bleed" into the next one.
+      store.resetAnswers();
 
-        // Note: Tidak perlu clear store karena:
-        // 1. Data dari backend akan overwrite data yang ada
-        // 2. localStorage sudah di-clear saat login/logout untuk prevent data tercampur antar user
+      try {
+        // Bug fix #3: Always fetch from server (no cache guard) so that
+        // progress saved on another device is reflected immediately.
+        const data = await meetingAPI.getMeeting(meetingNumber);
 
         // Load quiz answers from backend
         if (data.quizAnswers && data.quizAnswers.length > 0) {
@@ -70,11 +68,13 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
         // Load last slide index from meeting data
         if (data.meeting && data.meeting.last_slide_index !== null) {
           setLastSlideIndex(data.meeting.last_slide_index);
+        } else {
+          // Reset to 0 for a fresh/new meeting
+          setLastSlideIndex(0);
         }
 
         // Load meeting history if completed
         if (data.meeting && data.meeting.is_completed) {
-          // Store the meeting history in the store
           store.saveMeetingHistory(
             meetingId,
             data.meeting.last_slide_index,
@@ -112,9 +112,6 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
             if (!Number.isNaN(ts)) store.setMeetingStartTime(meetingId, ts);
           }
         }
-
-        // Mark as loaded
-        loadedMeetingRef.current = meetingId;
       } catch (error) {
         console.error("Failed to load meeting data from backend:", error);
       } finally {
@@ -124,7 +121,7 @@ export const useQuizStoreWithAPI = (meetingId: string) => {
 
     loadMeetingData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meetingId]); // Only depend on meetingId, store is stable from Zustand
+  }, [meetingId]); // Re-run every time the user opens a different meeting
 
   // Wrap saveAnswer to also save to backend
   const saveAnswerWithAPI = async (

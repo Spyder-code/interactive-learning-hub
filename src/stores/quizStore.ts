@@ -151,7 +151,12 @@ export const useQuizStore = create<QuizState>()(
       },
 
       resetAnswers: () => {
-        set({ answers: {}, uploads: {} });
+        set({
+          answers: {},
+          uploads: {},
+          maxSlideReached: {},
+          meetingStartTimes: {},
+        });
       },
 
       getQuizResults: () => {
@@ -332,14 +337,14 @@ export const useQuizStore = create<QuizState>()(
 
       // Implementation
       setMeetingStartTime: (meetingId, timestamp) => {
-        if (!get().meetingStartTimes[meetingId]) {
-          set((state) => ({
-            meetingStartTimes: {
-              ...state.meetingStartTimes,
-              [meetingId]: timestamp || Date.now(), // Use provided timestamp or fallback
-            },
-          }));
-        }
+        // Always update - allow overwrite so fresh server data is always used
+        // when switching between meetings or reopening on another device.
+        set((state) => ({
+          meetingStartTimes: {
+            ...state.meetingStartTimes,
+            [meetingId]: timestamp || Date.now(),
+          },
+        }));
       },
 
       getMeetingStartTime: (meetingId) => {

@@ -98,11 +98,12 @@ const SlideContent = ({
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.ms-powerpoint",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/pdf",
       ];
 
       if (!allowedTypes.includes(file.type)) {
         alert(
-          "Invalid file type. Only images and office files (Word, Excel, PowerPoint) are allowed.",
+          "Invalid file type. Only images and office files (Word, Excel, PowerPoint, PDF) are allowed.",
         );
         return;
       }
@@ -296,7 +297,7 @@ const SlideContent = ({
                   <input
                     id={`file-upload-${slide.id}-${i}`}
                     type="file"
-                    accept="image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    accept="image/*,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf"
                     onChange={(e) =>
                       handleFileUpload(i, e.target.files?.[0] || null)
                     }

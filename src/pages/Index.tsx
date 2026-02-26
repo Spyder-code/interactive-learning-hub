@@ -201,7 +201,11 @@ const Index = () => {
     [],
   );
 
-  const goNext = useCallback(() => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const goNext = useCallback(async () => {
+    if (isSaving) return; // Prevent multiple clicks
+
     // Check if current slide has quiz and if all questions are answered
     if (slide.quiz && slide.quiz.length > 0) {
       const quizCompleted = isQuizCompleted(slide.id, slide.quiz.length);
@@ -251,6 +255,7 @@ const Index = () => {
         return;
       }
 
+      setIsSaving(true);
       // Jika belum pernah diselesaikan, simpan history (pertama kali)
       const quizSlides = slides.filter((s) => s.quiz && s.quiz.length > 0);
       let totalQuestions = 0;
@@ -261,21 +266,35 @@ const Index = () => {
       const results = getQuizResults();
       const correctAnswers = Object.values(results).filter(Boolean).length;
 
-      // Simpan history
-      saveMeetingHistory(current, totalQuestions, correctAnswers);
+      try {
+        // Tampilkan pesan loading
+        setAlertMessage({
+          title: "Menyimpan...",
+          description: "Sedang menyimpan hasil belajar Anda.",
+        });
+        setAlertOpen(true);
 
-      // Tampilkan pesan sukses
-      setAlertMessage({
-        title: "Berhasil!",
-        description:
-          "Hasil belajar berhasil disimpan! Kembali ke halaman awal...",
-      });
-      setAlertOpen(true);
+        // AWAIT Simpan history
+        await saveMeetingHistory(current, totalQuestions, correctAnswers);
 
-      // Navigate ke halaman awal setelah 1.5 detik
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
+        // Tampilkan pesan sukses
+        setAlertMessage({
+          title: "Berhasil!",
+          description:
+            "Hasil belajar berhasil disimpan! Kembali ke halaman awal...",
+        });
+
+        // Navigate ke halaman awal setelah 1.5 detik
+        setTimeout(() => {
+          navigate("/");
+        }, 1500);
+      } catch (error) {
+        setIsSaving(false);
+        setAlertMessage({
+          title: "Gagal",
+          description: "Terjadi kesalahan saat menyimpan hasil belajar.",
+        });
+      }
       return;
     }
 
@@ -300,18 +319,31 @@ const Index = () => {
     navigate,
     isMeetingCompleted,
     updateCurrentSlideIndex,
+    isSaving,
   ]);
 
   const goPrev = useCallback(() => {
+    if (isSaving) return;
     const newIndex = Math.max(current - 1, 0);
     setCurrent(newIndex);
     if (meetingId) {
       updateCurrentSlideIndex(newIndex);
     }
-  }, [current, meetingId, updateCurrentSlideIndex]);
+  }, [current, meetingId, updateCurrentSlideIndex, isSaving]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Prevent keyboard shortcuts when user is typing in forms 
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.tagName === "SELECT")
+      ) {
+        return;
+      }
+
       if (e.key === "ArrowRight" || e.key === " ") {
         e.preventDefault();
         goNext();

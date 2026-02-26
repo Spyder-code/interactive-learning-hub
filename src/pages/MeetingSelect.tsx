@@ -63,7 +63,22 @@ const MeetingSelect = () => {
       }
     };
 
+    // Load data on initial mount
     loadData();
+
+    // Bug fix #1: Re-fetch status whenever the user returns to this tab
+    // (e.g. after completing a meeting in another route/tab) so completion
+    // badges update immediately without requiring logout/login.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadData();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [toast]);
 
   const handleLogout = () => {
