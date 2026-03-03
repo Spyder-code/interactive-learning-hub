@@ -109,7 +109,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP1,
     openedAt: toLocalISO(new Date("2026-02-18T20:00:00")),
-    closedAt: toLocalISO(new Date("2026-03-19T18:00:00")),
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")),
   },
   {
     id: "pertemuan-2",
@@ -120,7 +120,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP2,
     openedAt: toLocalISO(new Date("2026-02-19T15:00:00")), // Dibuka mulai 19 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-19T18:00:00")), // Ditutup setelah 19 Feb 2024, jam 17:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 19 Feb 2024, jam 17:00
   },
   {
     id: "pertemuan-3",
@@ -131,7 +131,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP3,
     openedAt: toLocalISO(new Date("2026-02-19T15:00:00")), // Dibuka mulai 19 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-19T18:00:00")), // Ditutup setelah 19 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 19 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-4",
@@ -142,7 +142,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP4,
     openedAt: toLocalISO(new Date("2026-02-20T15:00:00")), // Dibuka mulai 20 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-20T18:00:00")), // Ditutup setelah 20 Feb 2024, jam 17:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 20 Feb 2024, jam 17:00
   },
   {
     id: "pertemuan-5",
@@ -153,7 +153,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP5,
     openedAt: toLocalISO(new Date("2026-02-20T15:00:00")), // Dibuka mulai 20 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-20T18:00:00")), // Ditutup setelah 20 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 20 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-6",
@@ -164,7 +164,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP6,
     openedAt: toLocalISO(new Date("2026-02-23T15:00:00")), // Dibuka mulai 23 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-23T18:00:00")), // Ditutup setelah 23 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 23 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-7",
@@ -175,7 +175,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP7,
     openedAt: toLocalISO(new Date("2026-02-23T15:00:00")), // Dibuka mulai 23 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-23T18:00:00")), // Ditutup setelah 23 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 23 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-8",
@@ -186,7 +186,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP8,
     openedAt: toLocalISO(new Date("2026-02-24T15:00:00")), // Dibuka mulai 24 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-24T18:00:00")), // Ditutup setelah 24 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 24 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-9",
@@ -197,7 +197,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP9,
     openedAt: toLocalISO(new Date("2026-02-24T15:00:00")), // Dibuka mulai 24 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-24T18:00:00")), // Ditutup setelah 24 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 24 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-10",
@@ -208,7 +208,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP10,
     openedAt: toLocalISO(new Date("2026-02-25T15:00:00")), // Dibuka mulai 25 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-25T18:00:00")), // Ditutup setelah 25 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 25 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-11",
@@ -219,7 +219,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP11,
     openedAt: toLocalISO(new Date("2026-02-25T15:00:00")), // Dibuka mulai 25 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-25T18:00:00")), // Ditutup setelah 25 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 25 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-12",
@@ -230,7 +230,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP12,
     openedAt: toLocalISO(new Date("2026-02-26T15:00:00")), // Dibuka mulai 26 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-26T18:00:00")), // Ditutup setelah 26 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 26 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-13",
@@ -241,7 +241,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP13,
     openedAt: toLocalISO(new Date("2026-02-26T15:00:00")), // Dibuka mulai 26 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-26T18:00:00")), // Ditutup setelah 26 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 26 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-14",
@@ -252,7 +252,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP14,
     openedAt: toLocalISO(new Date("2026-02-27T15:00:00")), // Dibuka mulai 27 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-27T18:00:00")), // Ditutup setelah 27 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 27 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-15",
@@ -263,7 +263,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP15,
     openedAt: toLocalISO(new Date("2026-02-28T15:00:00")), // Dibuka mulai 28 Feb 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-28T18:00:00")), // Ditutup setelah 28 Feb 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 28 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-16",
@@ -274,7 +274,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP16,
     openedAt: toLocalISO(new Date("2026-03-02T15:00:00")), // Dibuka mulai 2 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-02T18:00:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
   },
   {
     id: "pertemuan-17",
@@ -285,7 +285,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP17,
     openedAt: toLocalISO(new Date("2026-03-02T15:00:00")), // Dibuka mulai 2 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-02T18:00:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
   },
   {
     id: "pertemuan-18",
@@ -296,7 +296,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP18,
     openedAt: toLocalISO(new Date("2026-03-03T15:00:00")), // Dibuka mulai 3 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-03T18:00:00")), // Ditutup setelah 3 Mar 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 3 Mar 2024, jam 18:00
   },
   {
     id: "pertemuan-19",
@@ -307,7 +307,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP19,
     openedAt: toLocalISO(new Date("2026-03-03T15:00:00")), // Dibuka mulai 3 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-03T18:00:00")), // Ditutup setelah 3 Mar 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 3 Mar 2024, jam 18:00
   },
   {
     id: "pertemuan-20",
@@ -318,6 +318,6 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP20,
     openedAt: toLocalISO(new Date("2026-03-04T15:00:00")), // Dibuka mulai 4 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-04T18:00:00")), // Ditutup setelah 4 Mar 2024, jam 18:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 4 Mar 2024, jam 18:00
   },
 ];
