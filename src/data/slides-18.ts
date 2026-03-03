@@ -214,7 +214,7 @@ export const slides: Slide[] = [
         question:
           "Fitur untuk memasukkan data buku secara otomatis hanya dengan mengetikkan kodenya disebut...",
         options: [
-          { label: "a", text: "Add by Identifier (Magic Wand)" },
+          { label: "a", text: "Add by Identifier (Magic Wand)", correct: true },
           { label: "b", text: "Add Note" },
           { label: "c", text: "New Collection" },
         ],
@@ -225,7 +225,11 @@ export const slides: Slide[] = [
         question:
           "Jika ingin mengambil metadata dari file PDF yang sudah ada di komputer, langkahnya adalah...",
         options: [
-          { label: "a", text: "Klik kanan PDF > Retrieve Metadata for PDF" },
+          {
+            label: "a",
+            text: "Klik kanan PDF > Retrieve Metadata for PDF",
+            correct: true,
+          },
           { label: "b", text: "Klik kanan PDF > Create Bibliography" },
           { label: "c", text: "Klik kanan PDF > Rename" },
         ],
@@ -236,7 +240,7 @@ export const slides: Slide[] = [
         question: "Di mana kita bisa menemukan file yang terduplikasi (ganda)?",
         options: [
           { label: "a", text: "Folder 'Trash'" },
-          { label: "b", text: "Folder 'Duplicate Items'" },
+          { label: "b", text: "Folder 'Duplicate Items'", correct: true },
           { label: "c", text: "Folder 'Unfiled Items'" },
         ],
         explanation:
@@ -247,7 +251,7 @@ export const slides: Slide[] = [
           "Untuk menampilkan daftar pustaka di Word, tombol yang diklik adalah...",
         options: [
           { label: "a", text: "Add/Edit Citation" },
-          { label: "b", text: "Add/Edit Bibliography" },
+          { label: "b", text: "Add/Edit Bibliography", correct: true },
           { label: "c", text: "Document Preferences" },
         ],
         explanation:
@@ -261,6 +265,7 @@ export const slides: Slide[] = [
           {
             label: "b",
             text: "Mengklik Document Preferences dan memilih style IEEE",
+            correct: true,
           },
           { label: "c", text: "Menginstal ulang Zotero" },
         ],
@@ -272,7 +277,11 @@ export const slides: Slide[] = [
           "Ikon 'Folder Kuning' di pojok kiri atas aplikasi Zotero berfungsi untuk...",
         options: [
           { label: "a", text: "Membuat Grup Baru" },
-          { label: "b", text: "Membuat Koleksi (Collection) baru" },
+          {
+            label: "b",
+            text: "Membuat Koleksi (Collection) baru",
+            correct: true,
+          },
           { label: "c", text: "Menghapus data" },
         ],
         explanation:
@@ -283,7 +292,11 @@ export const slides: Slide[] = [
           "Agar Zotero bisa mendeteksi metadata PDF, kita perlu menginstal...",
         options: [
           { label: "a", text: "Zotero Connector" },
-          { label: "b", text: "PDF Indexing (pdf2text & pdfinfo)" },
+          {
+            label: "b",
+            text: "PDF Indexing (pdf2text & pdfinfo)",
+            correct: true,
+          },
           { label: "c", text: "Microsoft Word" },
         ],
         explanation:
@@ -296,6 +309,7 @@ export const slides: Slide[] = [
           {
             label: "b",
             text: "Menyamakan data di aplikasi Desktop dengan akun Web Zotero",
+            correct: true,
           },
           { label: "c", text: "Membuat sitasi" },
         ],
@@ -310,6 +324,7 @@ export const slides: Slide[] = [
           {
             label: "b",
             text: "Menyembunyikan nama penulis (hanya menampilkan tahun)",
+            correct: true,
           },
           { label: "c", text: "Menambah nama penulis" },
         ],
@@ -323,6 +338,7 @@ export const slides: Slide[] = [
           {
             label: "b",
             text: "Bisa berbagi file PDF (attachment) antar anggota",
+            correct: true,
           },
           { label: "c", text: "Tidak butuh akun Zotero" },
         ],

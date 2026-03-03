@@ -313,8 +313,8 @@ const MeetingSelect = () => {
                       (getAvg(12, 14) * 0.10) +
                       (getAvg(15, 16) * 0.10) +
                       (getAvg(17, 18) * 0.10) +
-                      (getExact(19) * 0.30) +
-                      (getExact(20) * 0.10) +
+                      (getExact(19) * 0.10) +
+                      (getExact(20) * 0.30) +
                       ((Math.min(Object.values(attendances).filter(Boolean).length, 20) / 20) * 10)
                     );
                     return score.toFixed(1);

@@ -1,636 +1,563 @@
-import type { Slide } from "./slides";
-export const slides: Slide[] = [
-  // --- SESI 1: MICROSOFT WORD (BAB 1) ---
+import { Slide } from "./slides";
+
+export const slidesP19: Slide[] = [
+  // --- BAGIAN 1: PENDAHULUAN & SETUP (Slide 1-4) ---
   {
     id: 1,
-    title: "Quiz 1: Dasar Microsoft Word",
-    type: "quiz",
+    title: "Pengenalan LaTeX",
+    type: "content",
     icon: "1",
-    subtitle: "Bab 1 - Basic",
-    content: ["Uji pemahaman tentang operasi dasar dan formatting di Word."],
-    quiz: [
-      {
-        question: "Apa fungsi utama dari fitur 'Save As'?",
-        options: [
-          { label: "a", text: "Menyimpan perubahan pada file yang sama" },
-          {
-            label: "b",
-            text: "Menyimpan dokumen dengan nama atau lokasi baru",
-            correct: true,
-          },
-          { label: "c", text: "Menghapus file lama" },
-        ],
-        explanation:
-          "Save As memungkinkan Anda membuat salinan file dengan nama atau lokasi berbeda tanpa menimpa file asli.",
-      },
-      {
-        question:
-          "Shortcut keyboard untuk meratakan teks 'Justify' (Rata Kanan-Kiri) adalah...",
-        options: [
-          { label: "a", text: "Ctrl + L" },
-          { label: "b", text: "Ctrl + E" },
-          { label: "c", text: "Ctrl + J", correct: true },
-        ],
-        explanation:
-          "Ctrl + J digunakan untuk perataan Justify, Ctrl + L untuk Left, dan Ctrl + E untuk Center.",
-      },
-      {
-        question:
-          "Fitur untuk membuat teks kecil di atas huruf normal (seperti pangkat m²) disebut...",
-        options: [
-          { label: "a", text: "Subscript" },
-          { label: "b", text: "Superscript", correct: true },
-          { label: "c", text: "Strikethrough" },
-        ],
-        explanation: "Superscript (x²) menaikkan karakter ke atas garis teks.",
-      },
-      {
-        question:
-          "Untuk pindah ke halaman baru dengan rapi tanpa menekan Enter berkali-kali, gunakan...",
-        options: [
-          { label: "a", text: "Page Break", correct: true },
-          { label: "b", text: "Line Break" },
-          { label: "c", text: "Paragraph Spacing" },
-        ],
-        explanation:
-          "Page Break (Ctrl+Enter) memaksa kursor pindah ke awal halaman berikutnya.",
-      },
-      {
-        question:
-          "Di tab manakah pengaturan Margin dan Orientasi kertas berada?",
-        options: [
-          { label: "a", text: "Home" },
-          { label: "b", text: "Page Layout", correct: true },
-          { label: "c", text: "Insert" },
-        ],
-        explanation:
-          "Pengaturan halaman fisik (Page Setup) ada di tab Page Layout.",
-      },
+    subtitle: "Standar Penulisan Akademik Global",
+    content: [
+      "**LaTeX** (dibaca: Lah-tech atau Lay-tech) adalah sistem penyiapan dokumen berkualitas tinggi.",
+      "Sangat populer di kalangan akademisi, ilmuwan, dan insinyur untuk menulis jurnal, skripsi, dan buku.",
+      "**Perbedaan Utama dengan Word:**",
+      "- Word = **WYSIWYG** (What You See Is What You Get) - Anda mendesain sambil mengetik.",
+      "- LaTeX = **WYSIWYM** (What You See Is What You Mean) - Anda menulis 'kode/struktur', lalu sistem yang me-render desainnya menjadi PDF yang sangat rapi.",
     ],
   },
   {
     id: 2,
-    title: "Quiz 2: Word Lanjutan",
-    type: "quiz",
+    title: "Memulai dengan Overleaf",
+    type: "content",
     icon: "2",
-    subtitle: "Bab 1 - Advanced",
-    content: ["Uji pemahaman tentang fitur otomatisasi dokumen."],
-    quiz: [
-      {
-        question:
-          "Syarat utama agar Daftar Isi (Table of Contents) bisa dibuat otomatis adalah...",
-        options: [
-          { label: "a", text: "Judul harus ditebalkan (Bold)" },
-          {
-            label: "b",
-            text: "Judul harus menggunakan Styles (Heading)",
-            correct: true,
-          },
-          { label: "c", text: "Dokumen harus disimpan PDF" },
-        ],
-        explanation:
-          "Word membaca format Heading 1, 2, 3 untuk menyusun struktur daftar isi.",
-      },
-      {
-        question:
-          "Fitur untuk mengirim satu surat ke banyak penerima dengan nama berbeda disebut...",
-        options: [
-          { label: "a", text: "Mail Merge", correct: true },
-          { label: "b", text: "SmartArt" },
-          { label: "c", text: "Track Changes" },
-        ],
-        explanation:
-          "Mail Merge menggabungkan dokumen utama dengan sumber data penerima.",
-      },
-      {
-        question:
-          "Dalam Mail Merge, file Excel yang berisi daftar nama alamat disebut...",
-        options: [
-          { label: "a", text: "Main Document" },
-          { label: "b", text: "Data Source", correct: true },
-          { label: "c", text: "Preview" },
-        ],
-        explanation:
-          "Data Source adalah sumber data eksternal yang dibaca oleh Word.",
-      },
-      {
-        question:
-          "Jika Anda ingin mengubah format seluruh Judul Bab dalam satu klik, Anda harus memodifikasi...",
-        options: [
-          { label: "a", text: "Font Size manual" },
-          { label: "b", text: "Styles Heading", correct: true },
-          { label: "c", text: "Page Border" },
-        ],
-        explanation:
-          "Memodifikasi Style Heading akan menerapkan perubahan ke seluruh teks yang menggunakan style tersebut.",
-      },
-      {
-        question: "Menu 'Update Table' pada Daftar Isi berfungsi untuk...",
-        options: [
-          { label: "a", text: "Menghapus daftar isi" },
-          {
-            label: "b",
-            text: "Memperbarui nomor halaman atau judul yang berubah",
-            correct: true,
-          },
-          { label: "c", text: "Mengubah warna kertas" },
-        ],
-        explanation:
-          "Daftar isi tidak update otomatis realtime, harus diklik Update Table.",
-      },
+    subtitle: "Editor LaTeX Berbasis Cloud",
+    content: [
+      "Untuk menggunakan LaTeX, kita butuh *compiler* dan *editor*.",
+      "Daripada menginstal software berat seperti MiKTeX, kita akan menggunakan **Overleaf**.",
+      "**Keunggulan Overleaf:**",
+      "- Gratis dan berbasis web (tidak perlu install).",
+      "- Fitur kolaborasi realtime (seperti Google Docs).",
+      "- Ribuan template jurnal dan skripsi siap pakai.",
+      "Kunjungi: **www.overleaf.com**",
     ],
   },
-
-  // --- SESI 2: MICROSOFT EXCEL (BAB 2) ---
   {
     id: 3,
-    title: "Quiz 3: Dasar Excel",
-    type: "quiz",
+    title: "Struktur Dasar Dokumen LaTeX",
+    type: "content",
     icon: "3",
-    subtitle: "Bab 2 - Basic",
-    content: ["Uji pemahaman tentang sel, data, dan formatting."],
-    quiz: [
-      {
-        question: "Pertemuan antara Kolom dan Baris (misal A1) disebut...",
-        options: [
-          { label: "a", text: "Range" },
-          { label: "b", text: "Cell (Sel)", correct: true },
-          { label: "c", text: "Sheet" },
-        ],
-        explanation: "Sel adalah unit terkecil dalam worksheet.",
-      },
-      {
-        question:
-          "Fitur untuk membuat urutan angka 1, 2, 3... secara otomatis dengan menarik ujung sel disebut...",
-        options: [
-          { label: "a", text: "Autosum" },
-          { label: "b", text: "Autofill", correct: true },
-          { label: "c", text: "Filter" },
-        ],
-        explanation: "Autofill menyalin data atau membuat urutan logis.",
-      },
-      {
-        question:
-          "Untuk menggabungkan beberapa sel menjadi satu dan menengahkan teks, gunakan...",
-        options: [
-          { label: "a", text: "Wrap Text" },
-          { label: "b", text: "Merge & Center", correct: true },
-          { label: "c", text: "Group" },
-        ],
-        explanation: "Merge & Center menggabungkan sel terpilih.",
-      },
-      {
-        question:
-          "Jika teks terlalu panjang dan ingin dilipat ke bawah dalam satu sel, gunakan...",
-        options: [
-          { label: "a", text: "Wrap Text", correct: true },
-          { label: "b", text: "Shrink to Fit" },
-          { label: "c", text: "Merge Cells" },
-        ],
-        explanation:
-          "Wrap Text membuat teks turun ke baris baru jika lebar kolom tidak cukup.",
-      },
-      {
-        question:
-          "Setiap penulisan rumus di Excel WAJIB diawali dengan tanda...",
-        options: [
-          { label: "a", text: ":" },
-          { label: "b", text: "=", correct: true },
-          { label: "c", text: "#" },
-        ],
-        explanation: "Tanda sama dengan (=) adalah indikator mode rumus.",
-      },
+    subtitle: "Preamble & Body",
+    content: [
+      "Setiap file LaTeX (berakhiran `.tex`) dibagi menjadi dua bagian utama:",
+      "1. **Preamble (Pengaturan):** Berada di paling atas, sebelum `\\begin{document}`. Tempat mengatur jenis kertas dan memanggil paket (package).",
+      "2. **Body (Isi):** Berada di antara `\\begin{document}` dan `\\end{document}`. Di sinilah teks diketik.",
+      "**Aturan Emas:** Setiap perintah (command) di LaTeX selalu diawali dengan *backslash* (`\\`).",
     ],
   },
   {
     id: 4,
-    title: "Quiz 4: Rumus & Fungsi Excel",
-    type: "quiz",
+    title: "Tugas 1: Hello World",
+    type: "task",
     icon: "4",
-    subtitle: "Bab 2 - Formulas",
-    content: ["Uji logika rumus aritmatika, statistik, dan teks."],
-    quiz: [
-      {
-        question: "Fungsi untuk mencari nilai rata-rata adalah...",
-        options: [
-          { label: "a", text: "SUM" },
-          { label: "b", text: "AVERAGE", correct: true },
-          { label: "c", text: "MEDIAN" },
-        ],
-        explanation: "AVERAGE menghitung rata-rata aritmatika.",
-      },
-      {
-        question: "Jika sel A1='JAKARTA', rumus =LEFT(A1, 3) hasilnya...",
-        options: [
-          { label: "a", text: "JAK", correct: true },
-          { label: "b", text: "RTA" },
-          { label: "c", text: "KAR" },
-        ],
-        explanation: "LEFT mengambil 3 karakter dari kiri (J-A-K).",
-      },
-      {
-        question:
-          "Rumus logika =IF(80>75, 'Lulus', 'Gagal') akan menghasilkan...",
-        options: [
-          { label: "a", text: "Gagal" },
-          { label: "b", text: "Lulus", correct: true },
-          { label: "c", text: "Error" },
-        ],
-        explanation:
-          "Karena 80 lebih besar dari 75 (Benar), maka hasil yang diambil adalah 'Lulus'.",
-      },
-      {
-        question:
-          "Fungsi untuk menghitung BANYAKNYA data angka (bukan menjumlahkan) adalah...",
-        options: [
-          { label: "a", text: "SUM" },
-          { label: "b", text: "COUNT", correct: true },
-          { label: "c", text: "MAX" },
-        ],
-        explanation: "COUNT menghitung jumlah sel yang berisi angka.",
-      },
-      {
-        question: "Rumus =MID('INDONESIA', 3, 3) akan mengambil karakter...",
-        options: [
-          { label: "a", text: "IND" },
-          { label: "b", text: "DON", correct: true },
-          { label: "c", text: "NES" },
-        ],
-        explanation: "Mulai dari karakter ke-3 (D), ambil 3 huruf -> D-O-N.",
-      },
+    subtitle: "Praktik Overleaf - 10 Menit",
+    content: ["Mari buat dokumen LaTeX pertama Anda!"],
+    checklist: [
+      "Buka overleaf.com dan buat akun / Login dengan Google.",
+      "Klik **New Project** > **Blank Project**.",
+      "Beri nama proyek: 'Latihan_LaTeX_NamaAnda'.",
+      "Di panel kode (tengah), ubah teks judul di bagian `\\title{}` menjadi 'Belajar LaTeX Pertama'.",
+      "Ketik 'Halo Dunia! Ini dokumen LaTeX pertama saya.' di bawah `\\maketitle`.",
+      "Klik tombol hijau **Recompile** (atau tekan Ctrl+Enter).",
     ],
+    tasks: [
+      "Download hasil PDF-nya (ikon panah ke bawah di sebelah Recompile) dan upload.",
+    ],
+    requireUpload: true,
   },
 
-  // --- SESI 3: POWERPOINT (BAB 3) ---
+  // --- BAGIAN 2: FORMATTING, STRUKTUR & LAYOUT (Slide 5-10) ---
   {
     id: 5,
-    title: "Quiz 5: Dasar PowerPoint",
-    type: "quiz",
+    title: "Formatting Teks Dasar",
+    type: "content",
     icon: "5",
-    subtitle: "Bab 3 - Basic",
-    content: ["Uji pemahaman interface dan manajemen slide."],
-    quiz: [
-      {
-        question: "Ekstensi file standar untuk PowerPoint adalah...",
-        options: [
-          { label: "a", text: ".xlsx" },
-          { label: "b", text: ".pptx", correct: true },
-          { label: "c", text: ".docx" },
-        ],
-        explanation: ".pptx adalah format file presentasi standar.",
-      },
-      {
-        question:
-          "Tombol shortcut untuk memulai Slide Show dari awal adalah...",
-        options: [
-          { label: "a", text: "F5", correct: true },
-          { label: "b", text: "Shift + F5" },
-          { label: "c", text: "Esc" },
-        ],
-        explanation: "F5 memulai presentasi dari slide pertama.",
-      },
-      {
-        question:
-          "Area di bawah slide untuk menulis skrip pembicara disebut...",
-        options: [
-          { label: "a", text: "Slide Pane" },
-          { label: "b", text: "Notes Pane", correct: true },
-          { label: "c", text: "Outline" },
-        ],
-        explanation: "Notes Pane digunakan untuk catatan presenter.",
-      },
-      {
-        question:
-          "Untuk mencetak 3 slide dalam satu halaman beserta garis catatan, pilih layout...",
-        options: [
-          { label: "a", text: "Full Page Slides" },
-          { label: "b", text: "Handouts (3 Slides)", correct: true },
-          { label: "c", text: "Notes Pages" },
-        ],
-        explanation:
-          "Handout 3 slide memberikan ruang garis untuk audiens mencatat.",
-      },
-      {
-        question: "Tab menu untuk mengubah Tema dan Ukuran Slide adalah...",
-        options: [
-          { label: "a", text: "Home" },
-          { label: "b", text: "Design", correct: true },
-          { label: "c", text: "Transitions" },
-        ],
-        explanation: "Tab Design berisi Themes dan Page Setup.",
-      },
+    subtitle: "Tebal, Miring, Paragraf Baru",
+    content: [
+      "Cara mengubah gaya huruf di LaTeX:",
+      "- **Tebal (Bold):** Gunakan `\\textbf{teks di sini}`",
+      "- *Miring (Italic):* Gunakan `\\textit{teks di sini}`",
+      "- Garis Bawah (Underline): Gunakan `\\underline{teks di sini}`",
+      "**Paragraf Baru:** Untuk membuat paragraf baru, biarkan **satu baris kosong** (tekan Enter 2x) di editor. Jangan gunakan `\\\\` untuk paragraf baru!",
     ],
   },
   {
     id: 6,
-    title: "Quiz 6: Animasi & Interaktif",
-    type: "quiz",
+    title: "Struktur Bab & Sub-bab",
+    type: "content",
     icon: "6",
-    subtitle: "Bab 3 - Advanced",
-    content: ["Uji pemahaman tentang efek gerak dan link."],
-    quiz: [
-      {
-        question: "Efek perpindahan antar halaman slide disebut...",
-        options: [
-          { label: "a", text: "Animation" },
-          { label: "b", text: "Transition", correct: true },
-          { label: "c", text: "Hyperlink" },
-        ],
-        explanation:
-          "Transition adalah efek pada slide, Animation adalah efek pada objek.",
-      },
-      {
-        question:
-          "Fitur agar teks/gambar bisa diklik untuk menuju slide lain adalah...",
-        options: [
-          { label: "a", text: "Hyperlink", correct: true },
-          { label: "b", text: "Trigger" },
-          { label: "c", text: "Morph" },
-        ],
-        explanation:
-          "Hyperlink menjadikan objek interaktif menuju tujuan tertentu.",
-      },
-      {
-        question:
-          "Format file yang langsung menjalankan presentasi (Show Only) saat diklik adalah...",
-        options: [
-          { label: "a", text: ".pptx" },
-          { label: "b", text: ".ppsx", correct: true },
-          { label: "c", text: ".pdf" },
-        ],
-        explanation: "PPSX (PowerPoint Show) langsung masuk mode slide show.",
-      },
-      {
-        question: "Opsi 'Start: With Previous' pada animasi berarti...",
-        options: [
-          { label: "a", text: "Animasi jalan setelah klik mouse" },
-          {
-            label: "b",
-            text: "Animasi jalan bersamaan dengan sebelumnya",
-            correct: true,
-          },
-          { label: "c", text: "Animasi jalan setelah sebelumnya selesai" },
-        ],
-        explanation: "With Previous menjalankan animasi secara serentak.",
-      },
-      {
-        question:
-          "Tombol 'Action Button' berlambang Rumah biasanya berfungsi untuk...",
-        options: [
-          { label: "a", text: "Keluar program" },
-          { label: "b", text: "Kembali ke Slide Pertama", correct: true },
-          { label: "c", text: "Ke slide terakhir" },
-        ],
-        explanation: "Tombol Home secara default dilink ke First Slide.",
-      },
+    subtitle: "Sectioning Otomatis",
+    content: [
+      "Penomoran bab di LaTeX dilakukan secara otomatis. Cukup gunakan perintah berikut:",
+      "- `\\section{Judul Bab}` (Menghasilkan: 1. Judul Bab)",
+      "- `\\subsection{Judul Sub-bab}` (Menghasilkan: 1.1. Judul Sub-bab)",
+      "- `\\subsubsection{Judul Sub-sub-bab}` (Menghasilkan: 1.1.1.)",
+      "Jika tidak ingin diberi nomor (misal untuk Kata Pengantar), tambahkan tanda bintang: `\\section*{Kata Pengantar}`.",
     ],
   },
-
-  // --- SESI 4: MENDELEY (BAB 4) ---
   {
     id: 7,
-    title: "Quiz 7: Dasar Mendeley",
-    type: "quiz",
+    title: "Pengaturan Margin Halaman",
+    type: "content",
     icon: "7",
-    subtitle: "Bab 4 - Basic",
-    content: ["Uji pemahaman manajemen referensi."],
-    quiz: [
-      {
-        question: "Apa fungsi utama aplikasi Mendeley?",
-        options: [
-          { label: "a", text: "Mengedit foto" },
-          { label: "b", text: "Manajemen referensi dan sitasi", correct: true },
-          { label: "c", text: "Membuat presentasi" },
-        ],
-        explanation: "Mendeley adalah software citation & reference manager.",
-      },
-      {
-        question: "Plugin Mendeley di Microsoft Word terdapat pada tab...",
-        options: [
-          { label: "a", text: "Insert" },
-          { label: "b", text: "References", correct: true },
-          { label: "c", text: "View" },
-        ],
-        explanation: "Plugin Mendeley Cite-O-Matic muncul di tab References.",
-      },
-      {
-        question:
-          "Fitur untuk menyamakan data antara aplikasi Desktop dan Web Cloud adalah...",
-        options: [
-          { label: "a", text: "Refresh" },
-          { label: "b", text: "Sync (Sinkronisasi)", correct: true },
-          { label: "c", text: "Update" },
-        ],
-        explanation: "Sync menyinkronkan library lokal dengan server Mendeley.",
-      },
-      {
-        question:
-          "Cara paling cepat memasukkan file PDF yang sudah ada ke Mendeley adalah...",
-        options: [
-          { label: "a", text: "Mengetik manual" },
-          { label: "b", text: "Drag & Drop file ke aplikasi", correct: true },
-          { label: "c", text: "Web Importer" },
-        ],
-        explanation: "Drag & drop memungkinkan input file instan.",
-      },
-      {
-        question:
-          "Jika ingin bekerja sama berbagi referensi dengan teman, fitur yang digunakan adalah...",
-        options: [
-          { label: "a", text: "Create Folder" },
-          { label: "b", text: "Create Group", correct: true },
-          { label: "c", text: "Create Account" },
-        ],
-        explanation: "Groups memungkinkan kolaborasi dan sharing referensi.",
-      },
+    subtitle: "Package Geometry",
+    content: [
+      "Secara default, margin LaTeX cukup lebar. Untuk mengubahnya sesuai standar skripsi (misal: A4, margin 3cm), kita gunakan paket `geometry`.",
+      "**Letakkan kode ini di Preamble (sebelum begin document):**",
+      "`\\usepackage[a4paper, margin=3cm]{geometry}`",
+      "Anda juga bisa mengatur tiap sisi secara spesifik:",
+      "`\\usepackage[a4paper, left=4cm, right=3cm, top=3cm, bottom=3cm]{geometry}`",
     ],
   },
   {
     id: 8,
-    title: "Quiz 8: Mendeley Lanjutan",
-    type: "quiz",
+    title: "Daftar Isi Otomatis",
+    type: "content",
     icon: "8",
-    subtitle: "Bab 4 - Advanced",
-    content: ["Uji pemahaman sitasi dan pengelolaan."],
-    quiz: [
-      {
-        question:
-          "Tombol untuk menampilkan daftar pustaka otomatis di Word adalah...",
-        options: [
-          { label: "a", text: "Insert Citation" },
-          { label: "b", text: "Insert Bibliography", correct: true },
-          { label: "c", text: "Refresh" },
-        ],
-        explanation:
-          "Insert Bibliography men-generate daftar referensi dari sitasi yang ada.",
-      },
-      {
-        question:
-          "Gaya sitasi yang menggunakan angka kurung siku [1] adalah...",
-        options: [
-          { label: "a", text: "APA" },
-          { label: "b", text: "IEEE", correct: true },
-          { label: "c", text: "Harvard" },
-        ],
-        explanation: "IEEE adalah standar sitasi numerik teknik.",
-      },
-      {
-        question:
-          "Ekstensi browser untuk menyimpan jurnal dari internet ke Mendeley disebut...",
-        options: [
-          { label: "a", text: "Web Importer", correct: true },
-          { label: "b", text: "Web Exporter" },
-          { label: "c", text: "PDF Viewer" },
-        ],
-        explanation: "Mendeley Web Importer adalah add-on browser.",
-      },
-      {
-        question: "Fitur 'Check for Duplicates' berfungsi untuk...",
-        options: [
-          { label: "a", text: "Menghapus akun" },
-          {
-            label: "b",
-            text: "Mencari dan menggabungkan referensi ganda",
-            correct: true,
-          },
-          { label: "c", text: "Mengecek plagiasi" },
-        ],
-        explanation: "Fitur ini membersihkan library dari entri yang sama.",
-      },
-      {
-        question:
-          "Jika judul artikel di Mendeley salah, perbaikannya dilakukan di panel...",
-        options: [
-          { label: "a", text: "Kiri" },
-          { label: "b", text: "Kanan (Details)", correct: true },
-          { label: "c", text: "Tengah" },
-        ],
-        explanation: "Panel kanan (Details) tempat mengedit metadata.",
-      },
+    subtitle: "Keajaiban LaTeX",
+    content: [
+      "Di Word, Daftar Isi butuh beberapa langkah. Di LaTeX, hanya butuh **SATU KATA**.",
+      "Ketik `\\tableofcontents` tepat di bawah `\\begin{document}` (setelah `\\maketitle`).",
+      "LaTeX akan membaca seluruh `\\section` dan `\\subsection` Anda lalu men-generate Daftar Isi beserta nomor halamannya secara otomatis.",
+      "Gunakan perintah `\\newpage` setelahnya agar isi bab dimulai di halaman baru.",
     ],
   },
-
-  // --- SESI 5: ZOTERO (BAB 5) ---
   {
     id: 9,
-    title: "Quiz 9: Dasar Zotero",
-    type: "quiz",
+    title: "Tugas 2: Layout & Struktur",
+    type: "task",
     icon: "9",
-    subtitle: "Bab 5 - Basic",
-    content: ["Uji pemahaman tentang Zotero."],
+    subtitle: "Praktik Margin & TOC - 15 Menit",
+    content: ["Modifikasi dokumen Tugas 1 Anda."],
+    checklist: [
+      "Tambahkan paket geometry di Preamble: `\\usepackage[a4paper, margin=2.5cm]{geometry}`.",
+      "Buat Daftar Isi otomatis menggunakan `\\tableofcontents` dan lanjutkan dengan `\\newpage`.",
+      "Buat `\\section{Pendahuluan}` dan tulis 1 paragraf sembarang.",
+      "Buat `\\section{Tinjauan Pustaka}` dan berikan 2 `\\subsection` di dalamnya.",
+      "Recompile **2 KALI** (Terkadang LaTeX butuh 2x compile agar halaman Daftar Isi ter-update).",
+    ],
+    tasks: ["Upload file PDF hasil struktur ini."],
+    requireUpload: true,
+  },
+
+  // --- BAGIAN 3: LISTS & MATEMATIKA (Slide 10-14) ---
+  {
+    id: 10,
+    title: "Membuat Daftar (Lists)",
+    type: "content",
+    icon: "10",
+    subtitle: "Itemize & Enumerate",
+    content: [
+      "Environment digunakan untuk blok teks khusus. Diawali `\\begin{...}` dan diakhiri `\\end{...}`.",
+      "**Bullets (Titik):**",
+      "`\\begin{itemize}` \n `\\item Apel` \n `\\item Jeruk` \n `\\end{itemize}`",
+      "**Numbering (Angka 1, 2, 3):**",
+      "`\\begin{enumerate}` \n `\\item Kesatu` \n `\\item Kedua` \n `\\end{enumerate}`",
+    ],
+  },
+  {
+    id: 11,
+    title: "Kekuatan Utama LaTeX",
+    type: "content",
+    icon: "11",
+    subtitle: "Penulisan Rumus Matematika",
+    content: [
+      "LaTeX adalah raja dalam tipografi matematika.",
+      "Ada dua mode matematika:",
+      "1. **Inline Math:** Rumus menyatu di dalam teks. Apit dengan tanda Dolar `$ ... $`.",
+      "   *Contoh:* Rumus energi adalah `$E = mc^2$`.",
+      "2. **Display Math:** Rumus berdiri sendiri di tengah baris. Gunakan `\\[ ... \\]` atau environment `\\begin{equation} ... \\end{equation}` jika ingin bernomor.",
+    ],
+  },
+  {
+    id: 12,
+    title: "Sintaks Matematika Lanjutan",
+    type: "content",
+    icon: "12",
+    subtitle: "Pecahan, Akar, dan Simbol",
+    content: [
+      "Beberapa perintah penting dalam math mode:",
+      "- **Pangkat/Superscript:** `x^{2}`",
+      "- **Indeks/Subscript:** `H_{2}O`",
+      "- **Pecahan (Fraction):** `\\frac{atas}{bawah}`",
+      "- **Akar Kuadrat:** `\\sqrt{x}` atau `\\sqrt[3]{x}`",
+      "- **Simbol Yunani:** `\\alpha`, `\\beta`, `\\sum`, `\\int`",
+      "*Wajib panggil `\\usepackage{amsmath}` di Preamble untuk fitur matematika yang kompleks.*",
+    ],
+  },
+  {
+    id: 13,
+    title: "Tugas 3: Menulis Rumus",
+    type: "task",
+    icon: "13",
+    subtitle: "Praktik Matematika - 10 Menit",
+    content: ["Tambahkan `\\section{Rumus Matematika}` di dokumen Anda."],
+    checklist: [
+      "Tulis satu paragraf dengan Inline Math: 'Luas lingkaran dirumuskan dengan $L = \\pi r^2$'.",
+      "Buat Rumus Kuadrat (ABC) menggunakan `\\begin{equation}`.",
+      "Kode rumus ABC: `x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}`",
+      "Buat daftar bernomor (enumerate) di bawahnya berisi 2 penjelasan variabel.",
+    ],
+    tasks: ["Upload PDF hasil compile rumus matematika ini."],
+    requireUpload: true,
+  },
+
+  // --- BAGIAN 4: OBJEK VISUAL & CROSS-REFERENCING (Slide 14-18) ---
+  {
+    id: 14,
+    title: "Menyisipkan Gambar",
+    type: "content",
+    icon: "14",
+    subtitle: "Package graphicx",
+    content: [
+      "Wajib panggil `\\usepackage{graphicx}` di Preamble.",
+      "Di Overleaf, Anda harus meng-upload gambar ke panel kiri (file tree) terlebih dahulu.",
+      "**Kode menyisipkan gambar:**",
+      "`\\begin{figure}[h]`",
+      "`  \\centering`",
+      "`  \\includegraphics[width=0.6\\textwidth]{nama_file.jpg}`",
+      "`  \\caption{Ini judul gambar}`",
+      "`\\end{figure}`",
+    ],
+  },
+  {
+    id: 15,
+    title: "Membuat Tabel",
+    type: "content",
+    icon: "15",
+    subtitle: "Environment Tabular",
+    content: [
+      "Tabel di LaTeX disusun manual baris per baris.",
+      "- `&` digunakan untuk memisahkan kolom.",
+      "- `\\\\` digunakan untuk pindah baris.",
+      "- `\\hline` digunakan untuk membuat garis horizontal.",
+      "**Contoh:** `\\begin{tabular}{|c|c|}` (artinya 2 kolom rata tengah dengan garis vertikal pinggir).",
+      "*Tips: Gunakan web seperti **tablesgenerator.com** untuk men-generate kode tabel LaTeX dengan mudah.*",
+    ],
+  },
+  {
+    id: 16,
+    title: "Referensi Silang (Cross-Referencing)",
+    type: "content",
+    icon: "16",
+    subtitle: "Label & Ref",
+    content: [
+      "Di Word, jika Gambar 1 berubah menjadi Gambar 2, teks 'Lihat Gambar 1' harus diubah manual. Di LaTeX, itu otomatis!",
+      "**Langkah:**",
+      "1. Beri label pada objek: `\\caption{Logo Kampus} \\label{fig:logo}`",
+      "2. Panggil di dalam teks: `Seperti yang terlihat pada Gambar \\ref{fig:logo}...`",
+      "Jika gambar bergeser nomornya, `\\ref` akan otomatis menyesuaikan diri setelah direcompile.",
+    ],
+  },
+  {
+    id: 17,
+    title: "Tugas 4: Gambar & Referensi",
+    type: "task",
+    icon: "17",
+    subtitle: "Praktik Cross-Ref - 10 Menit",
+    content: ["Uji kemampuan menyisipkan gambar dan menautkannya."],
+    checklist: [
+      "Upload 1 gambar ke Overleaf.",
+      "Sisipkan gambar tersebut menggunakan `\\begin{figure}`. Beri `\\caption` dan `\\label{fig:gambar1}`.",
+      "Di paragraf sebelum gambar, tulis kalimat: 'Berdasarkan Gambar \\ref{fig:gambar1}, kita dapat melihat bahwa...'",
+      "Recompile 2x agar tanda '??' pada referensi berubah menjadi angka yang benar.",
+    ],
+    tasks: [
+      "Upload PDF yang menampilkan gambar dan referensi angkanya dengan benar.",
+    ],
+    requireUpload: true,
+  },
+
+  // --- BAGIAN 5: BIBLIOGRAFI & INTEGRASI MENDELEY/ZOTERO (Slide 18-21) ---
+  {
+    id: 18,
+    title: "Daftar Pustaka di LaTeX",
+    type: "content",
+    icon: "18",
+    subtitle: "Mengenal BibTeX",
+    content: [
+      "LaTeX menggunakan sistem bernama **BibTeX** untuk daftar pustaka.",
+      "Alih-alih mengetik daftar pustaka manual, Anda menyimpan data referensi dalam file terpisah berakhiran `.bib` (misal: `referensi.bib`).",
+      "File `.bib` berisi kode informasi jurnal. Anda tidak perlu mengetik ini manual, **Mendeley atau Zotero bisa mengekspornya untuk Anda!**",
+    ],
+  },
+  {
+    id: 19,
+    title: "Integrasi Mendeley/Zotero ke Overleaf",
+    type: "content",
+    icon: "19",
+    subtitle: "Jembatan Manajemen Referensi",
+    content: [
+      "**Cara kerja:**",
+      "1. Buka Zotero/Mendeley Anda.",
+      "2. Blok referensi yang ingin dipakai > Klik Kanan > **Export Items**.",
+      "3. Pilih format **BibTeX (*.bib)** > Save file tersebut ke laptop.",
+      "4. Buka Overleaf > Upload file `.bib` tersebut ke project Anda.",
+    ],
+  },
+  {
+    id: 20,
+    title: "Melakukan Sitasi (Citation)",
+    type: "content",
+    icon: "20",
+    subtitle: "Cite & Bibliography",
+    content: [
+      "Setiap referensi di file `.bib` punya 'Citation Key' (misal: `purwoko2014`).",
+      "**Di dalam teks LaTeX:**",
+      "Gunakan perintah `\\cite{purwoko2014}` untuk memunculkan sitasi.",
+      "**Di akhir dokumen (untuk memunculkan daftar pustaka):**",
+      "`\\bibliographystyle{apa}` (Pilih style, misal apa atau ieee)",
+      "`\\bibliography{nama_file_bib_anda}` (Tanpa ekstensi .bib)",
+    ],
+  },
+  {
+    id: 21,
+    title: "Tugas 5: Sitasi Otomatis",
+    type: "task",
+    icon: "21",
+    subtitle: "Praktik BibTeX - 15 Menit",
+    content: ["Mari gabungkan ilmu Bab 4/5 dengan Bab LaTeX."],
+    checklist: [
+      "Export 2 referensi dari Zotero/Mendeley Anda ke format `.bib`.",
+      "Upload file `.bib` tersebut ke Overleaf Anda.",
+      "Tulis 1 kalimat dan beri sitasi menggunakan perintah `\\cite{...}`.",
+      "Panggil daftar pustaka di bagian bawah dengan `\\bibliographystyle{plain}` dan `\\bibliography{namafile}`.",
+    ],
+    tasks: [
+      "Upload PDF hasil compile yang menampilkan sitasi [1] dan Daftar Pustaka di bawahnya.",
+    ],
+    requireUpload: true,
+  },
+
+  // --- BAGIAN 6: FINAL PROJECT & EVALUASI (Slide 22-25) ---
+  {
+    id: 22,
+    title: "Final Project LaTeX",
+    type: "challenge",
+    icon: "22",
+    subtitle: "Membuat Full Mini-Paper",
+    content: [
+      "**Tantangan Akhir:** Buatlah sebuah template artikel ilmiah mini yang lengkap (1-2 halaman).",
+      "Proyek ini akan merangkum seluruh perintah LaTeX yang telah Anda pelajari.",
+    ],
+  },
+  {
+    id: 23,
+    title: "Checklist Final Project",
+    type: "task",
+    icon: "23",
+    subtitle: "Ketentuan Dokumen",
+    content: [
+      "Pastikan file Overleaf Anda memenuhi syarat berikut sebelum di-download:",
+    ],
+    checklist: [
+      "Menggunakan `\\usepackage{geometry}` (Margin 3cm tiap sisi).",
+      "Memiliki `\\title`, `\\author`, `\\date` dan dipanggil dengan `\\maketitle`.",
+      "Memiliki Daftar Isi otomatis (`\\tableofcontents`).",
+      "Memiliki minimal 3 `\\section` (Pendahuluan, Pembahasan, Kesimpulan).",
+      "Terdapat 1 Gambar dengan caption dan direferensikan di teks (`\\ref`).",
+      "Terdapat 1 Tabel dan 1 Rumus Matematika (Equation).",
+      "Terdapat minimal 2 Sitasi (`\\cite`) yang bersumber dari file `.bib` dan menghasilkan Daftar Pustaka.",
+    ],
+    tasks: [
+      "Upload file **Source Code (.tex)** DAN file **PDF** hasil Final Project Anda.",
+    ],
+    requireUpload: true,
+  },
+  {
+    id: 24,
+    title: "Quiz Akhir LaTeX",
+    type: "quiz",
+    icon: "24",
+    subtitle: "Evaluasi Komprehensif (15 Soal)",
+    content: ["Uji pemahaman Anda tentang semua fitur LaTeX."],
     quiz: [
       {
-        question: "Perbedaan utama Zotero dibanding Mendeley adalah...",
+        question:
+          "Lingkungan utama (environment) di mana teks dokumen LaTeX harus diketik adalah di antara...",
         options: [
-          { label: "a", text: "Zotero berbayar" },
-          { label: "b", text: "Zotero Open Source", correct: true },
-          { label: "c", text: "Zotero hanya untuk Mac" },
-        ],
-        explanation: "Zotero adalah software open source.",
-      },
-      {
-        question: "Alat penghubung antara Browser dan Zotero disebut...",
-        options: [
-          { label: "a", text: "Zotero Link" },
-          { label: "b", text: "Zotero Connector", correct: true },
-          { label: "c", text: "Zotero Plugin" },
+          { label: "a", text: "\\start{doc} dan \\finish{doc}" },
+          {
+            label: "b",
+            text: "\\begin{document} dan \\end{document}",
+            correct: true,
+          },
+          { label: "c", text: "\\head dan \\body" },
         ],
         explanation:
-          "Zotero Connector dipasang di browser untuk menangkap metadata.",
-      },
-      {
-        question: "Kapasitas penyimpanan cloud gratis Zotero adalah...",
-        options: [
-          { label: "a", text: "2 GB" },
-          { label: "b", text: "300 MB", correct: true },
-          { label: "c", text: "Unlimited" },
-        ],
-        explanation: "Akun basic Zotero mendapat 300MB.",
-      },
-      {
-        question: "Ikon 'Tongkat Sihir' di Zotero berfungsi untuk...",
-        options: [
-          { label: "a", text: "Menghapus data" },
-          { label: "b", text: "Menambah item via ISBN/DOI", correct: true },
-          { label: "c", text: "Membuat folder" },
-        ],
-        explanation:
-          "Add Item by Identifier (ikon tongkat) mencari metadata via kode.",
+          "Setiap teks yang ingin ditampilkan harus berada di dalam environment document.",
       },
       {
         question:
-          "Agar Zotero bisa membaca file PDF, fitur yang harus diinstall adalah...",
+          "Perintah untuk membatalkan penomoran otomatis pada judul bab adalah dengan menambahkan...",
         options: [
-          { label: "a", text: "PDF Indexing", correct: true },
-          { label: "b", text: "PDF Reader" },
-          { label: "c", text: "Java" },
+          { label: "a", text: "Tanda Pagar (#)" },
+          { label: "b", text: "Tanda Bintang (*)", correct: true },
+          { label: "c", text: "Tanda Persen (%)" },
         ],
-        explanation: "PDF Indexing diperlukan untuk retrieve metadata.",
+        explanation:
+          "\\section*{Judul} akan membuat judul bab tanpa nomor urut.",
+      },
+      {
+        question:
+          "Paket (package) apa yang digunakan untuk mengatur ukuran kertas dan margin secara spesifik?",
+        options: [
+          { label: "a", text: "graphicx" },
+          { label: "b", text: "amsmath" },
+          { label: "c", text: "geometry", correct: true },
+        ],
+        explanation:
+          "Package geometry memudahkan modifikasi dimensi halaman dan margin.",
+      },
+      {
+        question:
+          "Berapa kali kita biasanya harus menekan 'Recompile' setelah menambahkan perintah \\tableofcontents agar daftar isi muncul dengan benar?",
+        options: [
+          { label: "a", text: "1 kali" },
+          { label: "b", text: "2 kali", correct: true },
+          { label: "c", text: "Tidak perlu recompile" },
+        ],
+        explanation:
+          "Kompilasi pertama mengumpulkan informasi struktur, kompilasi kedua menuliskannya ke halaman Daftar Isi.",
+      },
+      {
+        question: "Simbol untuk membuat pecahan matematika di LaTeX adalah...",
+        options: [
+          { label: "a", text: "\\divide" },
+          { label: "b", text: "\\frac", correct: true },
+          { label: "c", text: "\\split" },
+        ],
+        explanation: "\\frac{numerator}{denominator} digunakan untuk pecahan.",
+      },
+      {
+        question: "Environment untuk membuat list angka (1, 2, 3...) adalah...",
+        options: [
+          { label: "a", text: "itemize" },
+          { label: "b", text: "enumerate", correct: true },
+          { label: "c", text: "list" },
+        ],
+        explanation:
+          "Enumerate men-generate numbered list, sedangkan itemize men-generate bullet list.",
+      },
+      {
+        question:
+          "Untuk merujuk (cross-reference) sebuah gambar secara otomatis, kombinasi perintah yang dipakai adalah...",
+        options: [
+          { label: "a", text: "\\caption dan \\cite" },
+          { label: "b", text: "\\label dan \\ref", correct: true },
+          { label: "c", text: "\\mark dan \\link" },
+        ],
+        explanation:
+          "\\label menandai objek, \\ref memanggil nomor objek tersebut dalam teks.",
+      },
+      {
+        question: "Perintah ganda backslash (\\\\) di LaTeX berfungsi untuk...",
+        options: [
+          { label: "a", text: "Komentar teks" },
+          { label: "b", text: "Pindah baris (Line break)", correct: true },
+          { label: "c", text: "Memulai dokumen" },
+        ],
+        explanation:
+          "\\\\ memaksa teks pindah ke baris bawahnya tanpa membuat paragraf baru.",
+      },
+      {
+        question:
+          "Apa ekstensi file untuk menyimpan database referensi/daftar pustaka di LaTeX?",
+        options: [
+          { label: "a", text: ".tex" },
+          { label: "b", text: ".bib", correct: true },
+          { label: "c", text: ".doc" },
+        ],
+        explanation:
+          "BibTeX menggunakan ekstensi file .bib untuk menyimpan metadata referensi.",
+      },
+      {
+        question: "Perintah untuk memanggil sitasi di dalam teks adalah...",
+        options: [
+          { label: "a", text: "\\quote{...}" },
+          { label: "b", text: "\\cite{...}", correct: true },
+          { label: "c", text: "\\ref{...}" },
+        ],
+        explanation:
+          "\\cite{citation_key} akan menghasilkan referensi sesuai style yang dipilih (misal [1] atau (Nama, Tahun)).",
+      },
+      {
+        question: "Di mana kita mendeklarasikan \\bibliographystyle{...}?",
+        options: [
+          { label: "a", text: "Di Preamble" },
+          {
+            label: "b",
+            text: "Di tempat dimana Daftar Pustaka ingin ditampilkan (sebelum \\bibliography)",
+            correct: true,
+          },
+          { label: "c", text: "Di luar dokumen" },
+        ],
+        explanation:
+          "Deklarasi style dan pemanggilan file .bib dilakukan di bagian akhir dokumen tempat daftar pustaka dicetak.",
+      },
+      {
+        question:
+          "Simbol apa yang digunakan sebagai pemisah antar kolom dalam environment tabular (tabel)?",
+        options: [
+          { label: "a", text: "|" },
+          { label: "b", text: "&", correct: true },
+          { label: "c", text: ";" },
+        ],
+        explanation:
+          "Ampersand (&) berfungsi sebagai tabulator antar kolom dalam tabel atau matriks.",
+      },
+      {
+        question: "Apa kegunaan tanda Persen (%) dalam penulisan kode LaTeX?",
+        options: [
+          { label: "a", text: "Membuat rumus persentase" },
+          {
+            label: "b",
+            text: "Menjadikan teks sebagai komentar (tidak di-render ke PDF)",
+            correct: true,
+          },
+          { label: "c", text: "Membesarkan ukuran huruf" },
+        ],
+        explanation:
+          "Karakter % mengabaikan semua teks di sebelah kanannya hingga baris berakhir.",
+      },
+      {
+        question:
+          "Jika gambar yang kita masukkan dengan \\includegraphics terlalu besar, atribut apa yang ditambah?",
+        options: [
+          { label: "a", text: "[width=...]", correct: true },
+          { label: "b", text: "{scale=...}" },
+          { label: "c", text: "[zoom=...]" },
+        ],
+        explanation:
+          "Atribut opsional seperti [width=0.5\\textwidth] digunakan untuk men-skalakan gambar.",
+      },
+      {
+        question: "Perintah \\maketitle berfungsi untuk...",
+        options: [
+          { label: "a", text: "Menyimpan file" },
+          {
+            label: "b",
+            text: "Mencetak blok Judul, Penulis, dan Tanggal di halaman PDF",
+            correct: true,
+          },
+          { label: "c", text: "Membuat daftar isi" },
+        ],
+        explanation:
+          "Setelah mendefinisikan \\title dan \\author di Preamble, \\maketitle wajib dipanggil di dalam document untuk menampilkannya.",
       },
     ],
   },
   {
-    id: 10,
-    title: "Quiz 10: Zotero Lanjutan",
-    type: "quiz",
-    icon: "10",
-    subtitle: "Bab 5 - Advanced",
-    content: ["Uji pemahaman integrasi dan manajemen Zotero."],
-    quiz: [
-      {
-        question: "Tombol 'Green Plus' (+) di Zotero digunakan untuk...",
-        options: [
-          { label: "a", text: "Input data manual", correct: true },
-          { label: "b", text: "Input PDF" },
-          { label: "c", text: "Sync" },
-        ],
-        explanation: "Ikon plus hijau untuk membuat item baru secara manual.",
-      },
-      {
-        question: "Istilah 'Collection' di Zotero setara dengan...",
-        options: [
-          { label: "a", text: "File" },
-          { label: "b", text: "Folder", correct: true },
-          { label: "c", text: "Tag" },
-        ],
-        explanation:
-          "Collection adalah cara Zotero mengelompokkan referensi (folder).",
-      },
-      {
-        question:
-          "Fitur untuk mengambil metadata dari file PDF yang sudah ada disebut...",
-        options: [
-          { label: "a", text: "Scan PDF" },
-          { label: "b", text: "Retrieve Metadata for PDF", correct: true },
-          { label: "c", text: "Read PDF" },
-        ],
-        explanation: "Klik kanan PDF > Retrieve Metadata.",
-      },
-      {
-        question: "Di Word, Zotero menambahkan tab menu bernama...",
-        options: [
-          { label: "a", text: "References" },
-          { label: "b", text: "Zotero", correct: true },
-          { label: "c", text: "Add-Ins" },
-        ],
-        explanation:
-          "Zotero biasanya membuat tab menu sendiri bernama 'Zotero' di Word.",
-      },
-      {
-        question:
-          "Mengapa disarankan memindahkan Data Directory Zotero ke drive non-sistem?",
-        options: [
-          { label: "a", text: "Agar lebih cepat" },
-          {
-            label: "b",
-            text: "Agar data aman saat install ulang Windows",
-            correct: true,
-          },
-          { label: "c", text: "Agar bisa diakses orang lain" },
-        ],
-        explanation:
-          "Memindahkan dari Drive C menjaga keamanan data saat sistem di-reset.",
-      },
+    id: 25,
+    title: "Penutup Modul LaTeX",
+    type: "content",
+    icon: "25",
+    subtitle: "Selamat!",
+    content: [
+      "Anda telah berhasil menyelesaikan pengenalan komprehensif LaTeX dari nol hingga integrasi Daftar Pustaka.",
+      "Kemampuan LaTeX sangat dihargai di dunia akademik internasional dan penelitian sains.",
+      "**Saran Lanjutan:** Eksplorasi template (IEEE, Elsevier) di Overleaf untuk mempercepat penulisan jurnal Anda di masa depan.",
+      "Terima kasih dan semoga sukses dalam penyusunan tugas akhir/riset Anda!",
     ],
   },
 ];

@@ -17,8 +17,6 @@ import { slides as slidesP15 } from "./slides-p15";
 import { slides as slidesP16 } from "./slides-p16";
 import { slides as slidesP17 } from "./slides-p17";
 import { slides as slidesP18 } from "./slides-18";
-import { slides as slidesP19 } from "./slides-19";
-import { slides as slidesP20 } from "./slides-20";
 import type { Slide } from "./slides";
 import {
   FiFileText,
@@ -42,6 +40,9 @@ import {
   FiAward,
   FiTarget,
 } from "react-icons/fi";
+import { slidesP21 } from "./slides-21";
+import { slidesP20 } from "./slides-20";
+import { slidesP19 } from "./slides-19";
 
 export interface Meeting {
   id: string;
@@ -295,29 +296,40 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiDatabase, { className: "text-primary" }),
     duration: 90,
     slides: slidesP18,
-    openedAt: toLocalISO(new Date("2026-03-03T15:00:00")), // Dibuka mulai 3 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 3 Mar 2024, jam 18:00
+    openedAt: toLocalISO(new Date("2026-03-02T15:00:00")), // Dibuka mulai 2 Mar 2024, jam 15:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
   },
   {
     id: "pertemuan-19",
     number: 19,
     title: "Pertemuan 19",
-    subtitle: "Quiz Komprehensif",
+    subtitle: "Pengenalan LaTeX",
     icon: React.createElement(FiAward, { className: "text-primary" }),
     duration: 90,
     slides: slidesP19,
-    openedAt: toLocalISO(new Date("2026-03-03T15:00:00")), // Dibuka mulai 3 Mar 2024, jam 15:00
-    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 3 Mar 2024, jam 18:00
+    openedAt: toLocalISO(new Date("2026-03-02T15:00:00")), // Dibuka mulai 2 Mar 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 10 Mar 2026, jam 23:59
   },
   {
     id: "pertemuan-20",
     number: 20,
     title: "Pertemuan 20",
-    subtitle: "Final Project Integrasi Office",
+    subtitle: "Last Exam: Final Quiz",
     icon: React.createElement(FiTarget, { className: "text-primary" }),
     duration: 90,
     slides: slidesP20,
-    openedAt: toLocalISO(new Date("2026-03-04T15:00:00")), // Dibuka mulai 4 Mar 2024, jam 15:00
+    openedAt: toLocalISO(new Date("2026-03-02T15:00:00")), // Dibuka mulai 4 Mar 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 10 Mar 2026, jam 23:59
+  },
+  {
+    id: "pertemuan-21",
+    number: 21,
+    title: "Pertemuan 21",
+    subtitle: "Final Project Remedial",
+    icon: React.createElement(FiTarget, { className: "text-primary" }),
+    duration: 90,
+    slides: slidesP21,
+    openedAt: toLocalISO(new Date("2026-03-02T15:00:00")), // Dibuka mulai 4 Mar 2024, jam 15:00
     closedAt: toLocalISO(new Date("2026-03-10T23:59:00")), // Ditutup setelah 4 Mar 2024, jam 18:00
   },
 ];

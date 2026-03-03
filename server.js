@@ -903,8 +903,8 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
       const score12to14 = getAvg(12, 14) * 0.1;
       const score15to16 = getAvg(15, 16) * 0.1;
       const score17to18 = getAvg(17, 18) * 0.1;
-      const score19 = getPercentageForMeeting(19) * 0.3;
-      const score20 = getPercentageForMeeting(20) * 0.1;
+      const score19 = getPercentageForMeeting(19) * 0.1;
+      const score20 = getPercentageForMeeting(20) * 0.3;
 
       const completedCount = userMeetings.filter((m) => m.is_completed).length;
       const presentCount = allAttendances.filter(
@@ -1171,8 +1171,8 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
       const score12to14 = getAvg(12, 14) * 0.1;
       const score15to16 = getAvg(15, 16) * 0.1;
       const score17to18 = getAvg(17, 18) * 0.1;
-      const score19 = getPercentageForMeeting(19) * 0.3;
-      const score20 = getPercentageForMeeting(20) * 0.1;
+      const score19 = getPercentageForMeeting(19) * 0.1;
+      const score20 = getPercentageForMeeting(20) * 0.3;
 
       const presentCount = allAttendances.filter(
         (a) => a.user_id === student.id && a.is_present,
