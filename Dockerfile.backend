@@ -16,7 +16,7 @@ COPY database.js ./
 COPY middleware ./middleware/
 
 # Create necessary directories
-RUN mkdir -p storage
+RUN mkdir -p storage data
 
 # Expose backend port
 EXPOSE 3001

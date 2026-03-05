@@ -6,7 +6,12 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database(path.join(__dirname, "database.sqlite"));
+// Use environment variable for database path, fallback to local for development
+const dbPath = process.env.DATABASE_PATH
+  ? path.join(process.env.DATABASE_PATH, "database.sqlite")
+  : path.join(__dirname, "database.sqlite");
+
+const db = new Database(dbPath);
 
 // Membuat tabel-tabel
 function initializeDatabase() {

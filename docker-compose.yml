@@ -12,9 +12,10 @@ services:
       - PORT=3002
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-this}
       - NODE_ENV=production
+      - DATABASE_PATH=/app/data
     volumes:
-      - ./storage:/app/storage
-      - ./database.sqlite:/app/database.sqlite
+      - storage:/app/storage
+      - database:/app/data
     restart: unless-stopped
     networks:
       - app-network
