@@ -23,9 +23,17 @@ function initializeDatabase() {
       password TEXT NOT NULL,
       name TEXT NOT NULL,
       role TEXT DEFAULT 'student',
+      is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Add is_active column if it doesn't exist (for existing databases)
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`);
+  } catch (error) {
+    // Column already exists, ignore error
+  }
 
   // Tabel meetings (menyimpan data meeting completion per user)
   db.exec(`

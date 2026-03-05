@@ -53,7 +53,19 @@ import {
   FiRefreshCw,
   FiSearch,
   FiClipboard,
+  FiUserCheck,
+  FiUserX,
+  FiSettings,
 } from "react-icons/fi";
+
+interface User {
+  id: number;
+  nim: string;
+  name: string;
+  role: string;
+  is_active: number;
+  created_at: string;
+}
 
 interface Student {
   id: number;
@@ -75,7 +87,11 @@ interface Student {
     attendanceScore: number;
   };
   attendances?: { meeting_id: number; is_present: boolean }[];
-  meeting_progress?: { meeting_id: number; percentage: number; is_completed: number }[];
+  meeting_progress?: {
+    meeting_id: number;
+    percentage: number;
+    is_completed: number;
+  }[];
 }
 
 interface Meeting {
@@ -144,7 +160,9 @@ interface Statistics {
 
 const TeacherDashboard = () => {
   const [students, setStudents] = useState<Student[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [userSearch, setUserSearch] = useState("");
   const [absensiSearch, setAbsensiSearch] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -155,11 +173,16 @@ const TeacherDashboard = () => {
   );
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<TaskUpload | null>(null);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   // Track which attendance cell is currently being saved: "studentId-meetingId"
-  const [savingAttendance, setSavingAttendance] = useState<Set<string>>(new Set());
+  const [savingAttendance, setSavingAttendance] = useState<Set<string>>(
+    new Set(),
+  );
+  // Track which user is being toggled: userId
+  const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -216,7 +239,10 @@ const TeacherDashboard = () => {
     try {
       setLoadingDetail(true);
 
-      const data = await teacherAPI.getStudentMeetingDetail(studentId, meetingNumber);
+      const data = await teacherAPI.getStudentMeetingDetail(
+        studentId,
+        meetingNumber,
+      );
 
       // Debug logging
       console.log("=== Meeting Detail Debug ===");
@@ -240,6 +266,55 @@ const TeacherDashboard = () => {
       });
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const usersData = await teacherAPI.getAllUsers();
+      setUsers(usersData);
+    } catch (error) {
+      console.error("Load users error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal memuat data pengguna",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const toggleUserActive = async (
+    userId: number,
+    currentActiveStatus: number,
+  ) => {
+    try {
+      setTogglingUserId(userId);
+      const newStatus = currentActiveStatus === 1 ? false : true;
+      await teacherAPI.toggleUserActive(userId, newStatus);
+
+      // Update local state
+      setUsers(
+        users.map((u) =>
+          u.id === userId ? { ...u, is_active: newStatus ? 1 : 0 } : u,
+        ),
+      );
+
+      toast({
+        title: "Sukses",
+        description: `User berhasil ${newStatus ? "diaktifkan" : "dinonaktifkan"}`,
+      });
+    } catch (error: any) {
+      console.error("Toggle user active error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal mengubah status user",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingUserId(null);
     }
   };
 
@@ -348,7 +423,10 @@ const TeacherDashboard = () => {
       }
 
       // Call recalculate API
-      const data = await teacherAPI.recalculateScore(meetingDetail.meeting.id, totalQuestionsActual);
+      const data = await teacherAPI.recalculateScore(
+        meetingDetail.meeting.id,
+        totalQuestionsActual,
+      );
 
       toast({
         title: "Berhasil!",
@@ -436,7 +514,7 @@ const TeacherDashboard = () => {
   const filteredStudents = students.filter(
     (student) =>
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.nim.toLowerCase().includes(searchTerm.toLowerCase())
+      student.nim.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
@@ -556,6 +634,10 @@ const TeacherDashboard = () => {
             <TabsTrigger value="activity">
               <FiActivity className="mr-2" />
               Aktivitas Terkini
+            </TabsTrigger>
+            <TabsTrigger value="users">
+              <FiSettings className="mr-2" />
+              Manajemen User
             </TabsTrigger>
           </TabsList>
 
@@ -967,139 +1049,178 @@ const TeacherDashboard = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="mb-6">
-                        <h3 className="text-lg font-semibold mb-3">Absensi Manual (Kehadiran)</h3>
+                        <h3 className="text-lg font-semibold mb-3">
+                          Absensi Manual (Kehadiran)
+                        </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2">
-                          {Array.from({ length: 20 }, (_, i) => i + 1).map((meetingNumber) => {
-                            const isPresent = selectedStudent.attendances?.some(
-                              (a) => a.meeting_id === meetingNumber && a.is_present
-                            );
-                            
-                            return (
-                              <button
-                                key={`att-${meetingNumber}`}
-                                onClick={async () => {
-                                  try {
-                                    const nextState = !isPresent;
-                                    // Optimistic local update
-                                    const updatedAttendances = selectedStudent.attendances || [];
-                                    const filtered = updatedAttendances.filter(a => a.meeting_id !== meetingNumber);
-                                    filtered.push({ meeting_id: meetingNumber, is_present: nextState });
-                                    setSelectedStudent({...selectedStudent, attendances: filtered});
-                                    
-                                    await teacherAPI.updateAttendance(selectedStudent.id, meetingNumber, nextState);
-                                    await loadData();
-                                  } catch (e) {
-                                    toast({ title: "Gagal", description: "Gagal memperbarui absensi", variant: "destructive" });
-                                  }
-                                }}
-                                className={`flex flex-col items-center justify-center p-2 border rounded-md transition-colors ${
-                                  isPresent ? "bg-primary/20 border-primary/50 text-primary hover:bg-primary/30" : "bg-card hover:bg-muted"
-                                }`}
-                              >
-                                <span className="text-xs font-medium">M {meetingNumber}</span>
-                                {isPresent ? <FiCheckCircle className="mt-1" size={14} /> : <FiCircle className="mt-1 text-muted-foreground" size={14} />}
-                              </button>
-                            );
-                          })}
+                          {Array.from({ length: 20 }, (_, i) => i + 1).map(
+                            (meetingNumber) => {
+                              const isPresent =
+                                selectedStudent.attendances?.some(
+                                  (a) =>
+                                    a.meeting_id === meetingNumber &&
+                                    a.is_present,
+                                );
+
+                              return (
+                                <button
+                                  key={`att-${meetingNumber}`}
+                                  onClick={async () => {
+                                    try {
+                                      const nextState = !isPresent;
+                                      // Optimistic local update
+                                      const updatedAttendances =
+                                        selectedStudent.attendances || [];
+                                      const filtered =
+                                        updatedAttendances.filter(
+                                          (a) => a.meeting_id !== meetingNumber,
+                                        );
+                                      filtered.push({
+                                        meeting_id: meetingNumber,
+                                        is_present: nextState,
+                                      });
+                                      setSelectedStudent({
+                                        ...selectedStudent,
+                                        attendances: filtered,
+                                      });
+
+                                      await teacherAPI.updateAttendance(
+                                        selectedStudent.id,
+                                        meetingNumber,
+                                        nextState,
+                                      );
+                                      await loadData();
+                                    } catch (e) {
+                                      toast({
+                                        title: "Gagal",
+                                        description:
+                                          "Gagal memperbarui absensi",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  className={`flex flex-col items-center justify-center p-2 border rounded-md transition-colors ${
+                                    isPresent
+                                      ? "bg-primary/20 border-primary/50 text-primary hover:bg-primary/30"
+                                      : "bg-card hover:bg-muted"
+                                  }`}
+                                >
+                                  <span className="text-xs font-medium">
+                                    M {meetingNumber}
+                                  </span>
+                                  {isPresent ? (
+                                    <FiCheckCircle className="mt-1" size={14} />
+                                  ) : (
+                                    <FiCircle
+                                      className="mt-1 text-muted-foreground"
+                                      size={14}
+                                    />
+                                  )}
+                                </button>
+                              );
+                            },
+                          )}
                         </div>
                       </div>
 
-                      <h3 className="text-lg font-semibold mb-3">Riwayat Pertemuan</h3>
-                    {studentMeetings.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8">
-                        Belum ada meeting yang dikerjakan
-                      </p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Meeting</TableHead>
-                            <TableHead>Waktu Mulai</TableHead>
-                            <TableHead>Durasi</TableHead>
-                            <TableHead>Progress</TableHead>
-                            <TableHead>Soal</TableHead>
-                            <TableHead>Benar</TableHead>
-                            <TableHead>Skor</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Aksi</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {studentMeetings.map((meeting) => (
-                            <TableRow key={meeting.id}>
-                              <TableCell className="font-medium">
-                                Pertemuan {meeting.meeting_id}
-                              </TableCell>
-                              <TableCell>
-                                {formatDate(meeting.start_time)}
-                              </TableCell>
-                              <TableCell>
-                                {formatDuration(meeting.duration_minutes)}
-                              </TableCell>
-                              <TableCell>
-                                Slide {meeting.last_slide_index + 1}
-                              </TableCell>
-                              <TableCell>
-                                {meeting.is_completed
-                                  ? meeting.total_questions
-                                  : "-"}
-                              </TableCell>
-                              <TableCell>
-                                {meeting.is_completed
-                                  ? meeting.correct_answers
-                                  : "-"}
-                              </TableCell>
-                              <TableCell>
-                                {meeting.is_completed ? (
-                                  <div className="flex items-center gap-1">
-                                    <Badge
-                                      variant={
-                                        meeting.percentage > 100
-                                          ? "destructive"
-                                          : meeting.percentage >= 70
-                                            ? "default"
-                                            : "secondary"
-                                      }
-                                    >
-                                      {meeting.percentage.toFixed(1)}%
-                                    </Badge>
-                                    {meeting.percentage > 100 && (
-                                      <span className="text-xs text-destructive">
-                                        ⚠️
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">
-                                    -
-                                  </span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {meeting.is_completed ? (
-                                  <Badge variant="default">Selesai</Badge>
-                                ) : (
-                                  <Badge variant="outline">
-                                    Dalam Progress
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleViewMeeting(meeting)}
-                                >
-                                  Lihat Detail
-                                </Button>
-                              </TableCell>
+                      <h3 className="text-lg font-semibold mb-3">
+                        Riwayat Pertemuan
+                      </h3>
+                      {studentMeetings.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">
+                          Belum ada meeting yang dikerjakan
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Meeting</TableHead>
+                              <TableHead>Waktu Mulai</TableHead>
+                              <TableHead>Durasi</TableHead>
+                              <TableHead>Progress</TableHead>
+                              <TableHead>Soal</TableHead>
+                              <TableHead>Benar</TableHead>
+                              <TableHead>Skor</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Aksi</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
+                          </TableHeader>
+                          <TableBody>
+                            {studentMeetings.map((meeting) => (
+                              <TableRow key={meeting.id}>
+                                <TableCell className="font-medium">
+                                  Pertemuan {meeting.meeting_id}
+                                </TableCell>
+                                <TableCell>
+                                  {formatDate(meeting.start_time)}
+                                </TableCell>
+                                <TableCell>
+                                  {formatDuration(meeting.duration_minutes)}
+                                </TableCell>
+                                <TableCell>
+                                  Slide {meeting.last_slide_index + 1}
+                                </TableCell>
+                                <TableCell>
+                                  {meeting.is_completed
+                                    ? meeting.total_questions
+                                    : "-"}
+                                </TableCell>
+                                <TableCell>
+                                  {meeting.is_completed
+                                    ? meeting.correct_answers
+                                    : "-"}
+                                </TableCell>
+                                <TableCell>
+                                  {meeting.is_completed ? (
+                                    <div className="flex items-center gap-1">
+                                      <Badge
+                                        variant={
+                                          meeting.percentage > 100
+                                            ? "destructive"
+                                            : meeting.percentage >= 70
+                                              ? "default"
+                                              : "secondary"
+                                        }
+                                      >
+                                        {meeting.percentage.toFixed(1)}%
+                                      </Badge>
+                                      {meeting.percentage > 100 && (
+                                        <span className="text-xs text-destructive">
+                                          ⚠️
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground text-sm">
+                                      -
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {meeting.is_completed ? (
+                                    <Badge variant="default">Selesai</Badge>
+                                  ) : (
+                                    <Badge variant="outline">
+                                      Dalam Progress
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleViewMeeting(meeting)}
+                                  >
+                                    Lihat Detail
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               )
             ) : (
@@ -1202,7 +1323,8 @@ const TeacherDashboard = () => {
                   Absensi Mahasiswa
                 </CardTitle>
                 <CardDescription>
-                  Klik tombol pertemuan untuk toggle kehadiran. Data tersimpan otomatis ke database.
+                  Klik tombol pertemuan untuk toggle kehadiran. Data tersimpan
+                  otomatis ke database.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1228,22 +1350,33 @@ const TeacherDashboard = () => {
                         <TableHead className="sticky left-[290px] bg-background z-10 w-[70px] text-center shadow-[1px_0_0_0_hsl(var(--border))]">
                           Hadir
                         </TableHead>
-                        {Array.from({ length: 20 }, (_, i) => i + 1).map((m) => (
-                          <TableHead key={m} className="text-center min-w-[60px] px-1">
-                            M{m}
-                          </TableHead>
-                        ))}
+                        {Array.from({ length: 20 }, (_, i) => i + 1).map(
+                          (m) => (
+                            <TableHead
+                              key={m}
+                              className="text-center min-w-[60px] px-1"
+                            >
+                              M{m}
+                            </TableHead>
+                          ),
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {students
                         .filter(
                           (s) =>
-                            s.name.toLowerCase().includes(absensiSearch.toLowerCase()) ||
-                            s.nim.toLowerCase().includes(absensiSearch.toLowerCase())
+                            s.name
+                              .toLowerCase()
+                              .includes(absensiSearch.toLowerCase()) ||
+                            s.nim
+                              .toLowerCase()
+                              .includes(absensiSearch.toLowerCase()),
                         )
                         .map((student) => {
-                          const totalHadir = student.attendances?.filter((a) => a.is_present).length ?? 0;
+                          const totalHadir =
+                            student.attendances?.filter((a) => a.is_present)
+                              .length ?? 0;
                           return (
                             <TableRow key={student.id}>
                               <TableCell className="sticky left-0 bg-background font-medium shadow-[1px_0_0_0_hsl(var(--border))]">
@@ -1253,81 +1386,127 @@ const TeacherDashboard = () => {
                                 {student.name}
                               </TableCell>
                               <TableCell className="sticky left-[290px] bg-background text-center shadow-[1px_0_0_0_hsl(var(--border))]">
-                                <Badge variant={totalHadir >= 14 ? "default" : totalHadir >= 10 ? "secondary" : "destructive"}>
+                                <Badge
+                                  variant={
+                                    totalHadir >= 14
+                                      ? "default"
+                                      : totalHadir >= 10
+                                        ? "secondary"
+                                        : "destructive"
+                                  }
+                                >
                                   {totalHadir}/20
                                 </Badge>
                               </TableCell>
-                              {Array.from({ length: 20 }, (_, i) => i + 1).map((meetingNum) => {
-                                const isPresent = student.attendances?.some(
-                                  (a) => a.meeting_id === meetingNum && a.is_present
-                                ) ?? false;
-                                const key = `${student.id}-${meetingNum}`;
-                                const isSaving = savingAttendance.has(key);
-                                return (
-                                  <TableCell key={meetingNum} className="text-center px-1">
-                                    <button
-                                      disabled={isSaving}
-                                      onClick={async () => {
-                                        const nextState = !isPresent;
-                                        setSavingAttendance((prev) => new Set(prev).add(key));
-                                        // Optimistic update
-                                        setStudents((prev) =>
-                                          prev.map((s) => {
-                                            if (s.id !== student.id) return s;
-                                            const filtered = (s.attendances || []).filter(
-                                              (a) => a.meeting_id !== meetingNum
-                                            );
-                                            filtered.push({ meeting_id: meetingNum, is_present: nextState });
-                                            return { ...s, attendances: filtered };
-                                          })
-                                        );
-                                        try {
-                                          await teacherAPI.updateAttendance(student.id, meetingNum, nextState);
-                                        } catch {
-                                          // Revert on failure
+                              {Array.from({ length: 20 }, (_, i) => i + 1).map(
+                                (meetingNum) => {
+                                  const isPresent =
+                                    student.attendances?.some(
+                                      (a) =>
+                                        a.meeting_id === meetingNum &&
+                                        a.is_present,
+                                    ) ?? false;
+                                  const key = `${student.id}-${meetingNum}`;
+                                  const isSaving = savingAttendance.has(key);
+                                  return (
+                                    <TableCell
+                                      key={meetingNum}
+                                      className="text-center px-1"
+                                    >
+                                      <button
+                                        disabled={isSaving}
+                                        onClick={async () => {
+                                          const nextState = !isPresent;
+                                          setSavingAttendance((prev) =>
+                                            new Set(prev).add(key),
+                                          );
+                                          // Optimistic update
                                           setStudents((prev) =>
                                             prev.map((s) => {
                                               if (s.id !== student.id) return s;
-                                              const filtered = (s.attendances || []).filter(
-                                                (a) => a.meeting_id !== meetingNum
+                                              const filtered = (
+                                                s.attendances || []
+                                              ).filter(
+                                                (a) =>
+                                                  a.meeting_id !== meetingNum,
                                               );
-                                              filtered.push({ meeting_id: meetingNum, is_present: isPresent });
-                                              return { ...s, attendances: filtered };
-                                            })
+                                              filtered.push({
+                                                meeting_id: meetingNum,
+                                                is_present: nextState,
+                                              });
+                                              return {
+                                                ...s,
+                                                attendances: filtered,
+                                              };
+                                            }),
                                           );
-                                          toast({
-                                            title: "Gagal",
-                                            description: "Gagal memperbarui absensi",
-                                            variant: "destructive",
-                                          });
-                                        } finally {
-                                          setSavingAttendance((prev) => {
-                                            const next = new Set(prev);
-                                            next.delete(key);
-                                            return next;
-                                          });
+                                          try {
+                                            await teacherAPI.updateAttendance(
+                                              student.id,
+                                              meetingNum,
+                                              nextState,
+                                            );
+                                          } catch {
+                                            // Revert on failure
+                                            setStudents((prev) =>
+                                              prev.map((s) => {
+                                                if (s.id !== student.id)
+                                                  return s;
+                                                const filtered = (
+                                                  s.attendances || []
+                                                ).filter(
+                                                  (a) =>
+                                                    a.meeting_id !== meetingNum,
+                                                );
+                                                filtered.push({
+                                                  meeting_id: meetingNum,
+                                                  is_present: isPresent,
+                                                });
+                                                return {
+                                                  ...s,
+                                                  attendances: filtered,
+                                                };
+                                              }),
+                                            );
+                                            toast({
+                                              title: "Gagal",
+                                              description:
+                                                "Gagal memperbarui absensi",
+                                              variant: "destructive",
+                                            });
+                                          } finally {
+                                            setSavingAttendance((prev) => {
+                                              const next = new Set(prev);
+                                              next.delete(key);
+                                              return next;
+                                            });
+                                          }
+                                        }}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all text-xs font-bold border ${
+                                          isSaving
+                                            ? "opacity-50 cursor-not-allowed bg-muted border-muted-foreground/30"
+                                            : isPresent
+                                              ? "bg-green-500 border-green-600 text-white hover:bg-green-600 shadow-sm"
+                                              : "bg-background border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                                        }`}
+                                        title={
+                                          isPresent
+                                            ? `Hadir M${meetingNum} — klik untuk absen`
+                                            : `Tidak hadir M${meetingNum} — klik untuk tandai hadir`
                                         }
-                                      }}
-                                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all text-xs font-bold border ${
-                                        isSaving
-                                          ? "opacity-50 cursor-not-allowed bg-muted border-muted-foreground/30"
-                                          : isPresent
-                                          ? "bg-green-500 border-green-600 text-white hover:bg-green-600 shadow-sm"
-                                          : "bg-background border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary"
-                                      }`}
-                                      title={isPresent ? `Hadir M${meetingNum} — klik untuk absen` : `Tidak hadir M${meetingNum} — klik untuk tandai hadir`}
-                                    >
-                                      {isSaving ? (
-                                        <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
-                                      ) : isPresent ? (
-                                        <FiCheckCircle size={14} />
-                                      ) : (
-                                        <FiCircle size={14} />
-                                      )}
-                                    </button>
-                                  </TableCell>
-                                );
-                              })}
+                                      >
+                                        {isSaving ? (
+                                          <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
+                                        ) : isPresent ? (
+                                          <FiCheckCircle size={14} />
+                                        ) : (
+                                          <FiCircle size={14} />
+                                        )}
+                                      </button>
+                                    </TableCell>
+                                  );
+                                },
+                              )}
                             </TableRow>
                           );
                         })}
@@ -1360,32 +1539,59 @@ const TeacherDashboard = () => {
                   <Table className="min-w-max relative border-collapse">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="sticky left-0 bg-background z-10 w-[120px] shadow-[1px_0_0_0_hsl(var(--border))]">NIM</TableHead>
-                        <TableHead className="sticky left-[120px] bg-background z-10 w-[200px] shadow-[1px_0_0_0_hsl(var(--border))]">Nama</TableHead>
-                        {Array.from({ length: 20 }, (_, i) => i + 1).map((m) => (
-                          <TableHead key={m} className="text-center min-w-[80px]">M {m}</TableHead>
-                        ))}
+                        <TableHead className="sticky left-0 bg-background z-10 w-[120px] shadow-[1px_0_0_0_hsl(var(--border))]">
+                          NIM
+                        </TableHead>
+                        <TableHead className="sticky left-[120px] bg-background z-10 w-[200px] shadow-[1px_0_0_0_hsl(var(--border))]">
+                          Nama
+                        </TableHead>
+                        {Array.from({ length: 20 }, (_, i) => i + 1).map(
+                          (m) => (
+                            <TableHead
+                              key={m}
+                              className="text-center min-w-[80px]"
+                            >
+                              M {m}
+                            </TableHead>
+                          ),
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredStudents.map((student) => (
                         <TableRow key={student.id}>
-                          <TableCell className="sticky left-0 bg-background font-medium shadow-[1px_0_0_0_hsl(var(--border))]">{student.nim}</TableCell>
-                          <TableCell className="sticky left-[120px] bg-background shadow-[1px_0_0_0_hsl(var(--border))]">{student.name}</TableCell>
-                          {Array.from({ length: 20 }, (_, i) => i + 1).map((m) => {
-                            const prog = student.meeting_progress?.find((p) => p.meeting_id === m);
-                            return (
-                              <TableCell key={m} className="text-center">
-                                {prog && prog.is_completed ? (
-                                  <Badge variant={prog.percentage >= 70 ? "default" : "secondary"}>
-                                    {Math.round(prog.percentage)}%
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            );
-                          })}
+                          <TableCell className="sticky left-0 bg-background font-medium shadow-[1px_0_0_0_hsl(var(--border))]">
+                            {student.nim}
+                          </TableCell>
+                          <TableCell className="sticky left-[120px] bg-background shadow-[1px_0_0_0_hsl(var(--border))]">
+                            {student.name}
+                          </TableCell>
+                          {Array.from({ length: 20 }, (_, i) => i + 1).map(
+                            (m) => {
+                              const prog = student.meeting_progress?.find(
+                                (p) => p.meeting_id === m,
+                              );
+                              return (
+                                <TableCell key={m} className="text-center">
+                                  {prog && prog.is_completed ? (
+                                    <Badge
+                                      variant={
+                                        prog.percentage >= 70
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {Math.round(prog.percentage)}%
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground">
+                                      -
+                                    </span>
+                                  )}
+                                </TableCell>
+                              );
+                            },
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1446,6 +1652,178 @@ const TeacherDashboard = () => {
                   <p className="text-center text-muted-foreground py-8">
                     Belum ada aktivitas
                   </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="users" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FiSettings className="w-5 h-5" />
+                      Manajemen User
+                    </CardTitle>
+                    <CardDescription>
+                      Kelola status aktif/nonaktif pengguna
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={loadUsers}
+                    disabled={loadingUsers}
+                    variant="outline"
+                  >
+                    <FiRefreshCw
+                      className={`mr-2 ${loadingUsers ? "animate-spin" : ""}`}
+                    />
+                    {loadingUsers ? "Memuat..." : "Refresh"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 flex items-center gap-2">
+                  <FiSearch className="text-muted-foreground" />
+                  <Input
+                    placeholder="Cari berdasarkan Nama atau NIM..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+
+                {loadingUsers ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Memuat data pengguna...
+                    </p>
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Klik tombol Refresh untuk memuat data pengguna
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>NIM</TableHead>
+                          <TableHead>Nama</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Terdaftar</TableHead>
+                          <TableHead className="text-right">Aksi</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {users
+                          .filter(
+                            (user) =>
+                              user.name
+                                .toLowerCase()
+                                .includes(userSearch.toLowerCase()) ||
+                              user.nim
+                                .toLowerCase()
+                                .includes(userSearch.toLowerCase()),
+                          )
+                          .map((user) => (
+                            <TableRow key={user.id}>
+                              <TableCell className="font-medium">
+                                {user.nim}
+                              </TableCell>
+                              <TableCell>{user.name}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    user.role === "teacher"
+                                      ? "default"
+                                      : "secondary"
+                                  }
+                                >
+                                  {user.role === "teacher" ? "Guru" : "Siswa"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {user.is_active === 1 ? (
+                                  <Badge variant="default" className="gap-1">
+                                    <FiUserCheck className="w-3 h-3" />
+                                    Aktif
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="destructive"
+                                    className="gap-1"
+                                  >
+                                    <FiUserX className="w-3 h-3" />
+                                    Nonaktif
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {new Date(user.created_at).toLocaleDateString(
+                                  "id-ID",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  },
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  onClick={() =>
+                                    toggleUserActive(user.id, user.is_active)
+                                  }
+                                  disabled={togglingUserId === user.id}
+                                  variant={
+                                    user.is_active === 1
+                                      ? "destructive"
+                                      : "default"
+                                  }
+                                  size="sm"
+                                >
+                                  {togglingUserId === user.id ? (
+                                    <>
+                                      <FiRefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                      Loading...
+                                    </>
+                                  ) : user.is_active === 1 ? (
+                                    <>
+                                      <FiUserX className="mr-2 h-4 w-4" />
+                                      Nonaktifkan
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FiUserCheck className="mr-2 h-4 w-4" />
+                                      Aktifkan
+                                    </>
+                                  )}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </TableBody>
+                    </Table>
+
+                    {users.filter(
+                      (user) =>
+                        user.name
+                          .toLowerCase()
+                          .includes(userSearch.toLowerCase()) ||
+                        user.nim
+                          .toLowerCase()
+                          .includes(userSearch.toLowerCase()),
+                    ).length === 0 && (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">
+                          Tidak ada pengguna yang cocok dengan pencarian
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

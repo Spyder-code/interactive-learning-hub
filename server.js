@@ -150,6 +150,15 @@ app.post("/api/auth/login", (req, res) => {
       return res.status(401).json({ error: "NIM atau password salah" });
     }
 
+    // Check if user is active
+    if (user.is_active === 0) {
+      return res
+        .status(403)
+        .json({
+          error: "Akun Anda tidak aktif. Silakan hubungi administrator.",
+        });
+    }
+
     const isPasswordValid = bcrypt.compareSync(password, user.password);
 
     if (!isPasswordValid) {
@@ -1343,6 +1352,73 @@ app.post(
     } catch (error) {
       console.error("Update attendance error:", error);
       res.status(500).json({ error: "Gagal menyimpan absensi" });
+    }
+  },
+);
+
+// ==================== USER MANAGEMENT ROUTES (TEACHER ONLY) ====================
+
+// Get all users with their active status (teacher only)
+app.get("/api/teacher/users", authenticateTeacher, (req, res) => {
+  try {
+    const users = db
+      .prepare(
+        `
+        SELECT id, nim, name, role, is_active, created_at 
+        FROM users 
+        ORDER BY role ASC, name ASC
+      `,
+      )
+      .all();
+
+    res.json(users);
+  } catch (error) {
+    console.error("Get users error:", error);
+    res.status(500).json({ error: "Gagal mengambil data pengguna" });
+  }
+});
+
+// Toggle user active status (teacher only)
+app.put(
+  "/api/teacher/users/:userId/active",
+  authenticateTeacher,
+  (req, res) => {
+    const userId = parseInt(req.params.userId);
+    const { is_active } = req.body;
+
+    try {
+      if (typeof is_active !== "boolean") {
+        return res.status(400).json({ error: "is_active must be a boolean" });
+      }
+
+      // Prevent teachers from deactivating themselves
+      if (userId === req.user.id && !is_active) {
+        return res
+          .status(400)
+          .json({ error: "Anda tidak dapat menonaktifkan akun sendiri" });
+      }
+
+      db.prepare(
+        `
+      UPDATE users 
+      SET is_active = ? 
+      WHERE id = ?
+    `,
+      ).run(is_active ? 1 : 0, userId);
+
+      const user = db
+        .prepare(
+          "SELECT id, nim, name, role, is_active FROM users WHERE id = ?",
+        )
+        .get(userId);
+
+      res.json({
+        message: `User berhasil ${is_active ? "diaktifkan" : "dinonaktifkan"}`,
+        user,
+      });
+    } catch (error) {
+      console.error("Toggle user active error:", error);
+      res.status(500).json({ error: "Gagal mengubah status user" });
     }
   },
 );

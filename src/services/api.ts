@@ -362,7 +362,7 @@ export const teacherAPI = {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({ totalQuestionsActual }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -377,7 +377,7 @@ export const teacherAPI = {
       `${API_BASE_URL.replace("/api", "")}/api/teacher/database/download`,
       {
         headers: getAuthHeaders(),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -395,18 +395,55 @@ export const teacherAPI = {
     document.body.removeChild(a);
   },
 
-  async updateAttendance(studentId: number, meetingId: number, isPresent: boolean) {
+  async updateAttendance(
+    studentId: number,
+    meetingId: number,
+    isPresent: boolean,
+  ) {
     const response = await fetch(
       `${API_BASE_URL.replace("/api", "")}/api/teacher/students/${studentId}/attendance/${meetingId}`,
       {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({ is_present: isPresent }),
-      }
+      },
     );
 
     if (!response.ok) {
       throw new Error("Gagal mengupdate absensi");
+    }
+
+    return response.json();
+  },
+
+  async getAllUsers() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/users`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil data pengguna");
+    }
+
+    return response.json();
+  },
+
+  async toggleUserActive(userId: number, isActive: boolean) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/users/${userId}/active`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ is_active: isActive }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal mengubah status user");
     }
 
     return response.json();
