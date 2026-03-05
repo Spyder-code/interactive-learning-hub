@@ -1,0 +1,25 @@
+# Backend Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY bun.lockb ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application files
+COPY server.js ./
+COPY database.js ./
+COPY middleware ./middleware/
+
+# Create necessary directories
+RUN mkdir -p storage
+
+# Expose backend port
+EXPOSE 3001
+
+# Start the backend server
+CMD ["node", "server.js"]

@@ -1,0 +1,36 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# Build outputs
+dist
+build
+
+# Development files
+.git
+.gitignore
+*.md
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+test
+*.test.ts
+*.test.js
+vitest.config.ts
+
+# Storage (will be mounted as volume)
+database.sqlite
+database.sqlite-journal
