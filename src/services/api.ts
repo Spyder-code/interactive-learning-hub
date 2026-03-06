@@ -448,4 +448,21 @@ export const teacherAPI = {
 
     return response.json();
   },
+
+  async logoutAllAccounts() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/logout-all`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal mengakhiri semua sesi");
+    }
+
+    return response.json();
+  },
 };

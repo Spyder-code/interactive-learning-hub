@@ -183,6 +183,7 @@ const TeacherDashboard = () => {
   );
   // Track which user is being toggled: userId
   const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -477,6 +478,33 @@ const TeacherDashboard = () => {
     navigate("/login");
   };
 
+  const handleLogoutAll = async () => {
+    if (
+      !window.confirm(
+        "Apakah Anda yakin ingin mengakhiri semua sesi akun mahasiswa? Semua mahasiswa yang sedang login akan dipaksa logout.",
+      )
+    ) {
+      return;
+    }
+    try {
+      setLoggingOutAll(true);
+      await teacherAPI.logoutAllAccounts();
+      toast({
+        title: "Berhasil!",
+        description: "Semua sesi akun mahasiswa berhasil diakhiri",
+      });
+    } catch (error: any) {
+      console.error("Logout all error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal mengakhiri semua sesi",
+        variant: "destructive",
+      });
+    } finally {
+      setLoggingOutAll(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleString("id-ID", {
@@ -536,6 +564,14 @@ const TeacherDashboard = () => {
               <Button variant="outline" onClick={handleDownloadDatabase}>
                 <FiDownload className="mr-2" />
                 Download DB
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleLogoutAll}
+                disabled={loggingOutAll}
+              >
+                <FiUserX className="mr-2" />
+                {loggingOutAll ? "Memproses..." : "Logout Semua"}
               </Button>
               <Button variant="outline" onClick={handleLogout}>
                 <FiLogOut className="mr-2" />

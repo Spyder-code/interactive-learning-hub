@@ -152,11 +152,9 @@ app.post("/api/auth/login", (req, res) => {
 
     // Check if user is active
     if (user.is_active === 0) {
-      return res
-        .status(403)
-        .json({
-          error: "Akun Anda tidak aktif. Silakan hubungi administrator.",
-        });
+      return res.status(403).json({
+        error: "Akun Anda tidak aktif. Silakan hubungi administrator.",
+      });
     }
 
     const isPasswordValid = bcrypt.compareSync(password, user.password);
@@ -1358,6 +1356,21 @@ app.post(
 
 // ==================== USER MANAGEMENT ROUTES (TEACHER ONLY) ====================
 
+// Logout all student accounts (invalidate all tokens)
+app.post("/api/teacher/logout-all", authenticateTeacher, (req, res) => {
+  try {
+    const now = getJakartaNow();
+    db.prepare(
+      `UPDATE users SET tokens_invalidated_after = ? WHERE role = 'student'`,
+    ).run(now);
+
+    res.json({ message: "Semua sesi akun mahasiswa berhasil diakhiri" });
+  } catch (error) {
+    console.error("Logout all error:", error);
+    res.status(500).json({ error: "Gagal mengakhiri semua sesi" });
+  }
+});
+
 // Get all users with their active status (teacher only)
 app.get("/api/teacher/users", authenticateTeacher, (req, res) => {
   try {
@@ -1398,13 +1411,17 @@ app.put(
           .json({ error: "Anda tidak dapat menonaktifkan akun sendiri" });
       }
 
-      db.prepare(
-        `
-      UPDATE users 
-      SET is_active = ? 
-      WHERE id = ?
-    `,
-      ).run(is_active ? 1 : 0, userId);
+      // When deactivating, also invalidate all existing tokens for that user
+      if (!is_active) {
+        db.prepare(
+          `UPDATE users SET is_active = ?, tokens_invalidated_after = ? WHERE id = ?`,
+        ).run(0, getJakartaNow(), userId);
+      } else {
+        db.prepare(`UPDATE users SET is_active = ? WHERE id = ?`).run(
+          1,
+          userId,
+        );
+      }
 
       const user = db
         .prepare(

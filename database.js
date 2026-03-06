@@ -24,6 +24,7 @@ function initializeDatabase() {
       name TEXT NOT NULL,
       role TEXT DEFAULT 'student',
       is_active INTEGER DEFAULT 1,
+      tokens_invalidated_after DATETIME DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -31,6 +32,15 @@ function initializeDatabase() {
   // Add is_active column if it doesn't exist (for existing databases)
   try {
     db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`);
+  } catch (error) {
+    // Column already exists, ignore error
+  }
+
+  // Add tokens_invalidated_after column if it doesn't exist (for existing databases)
+  try {
+    db.exec(
+      `ALTER TABLE users ADD COLUMN tokens_invalidated_after DATETIME DEFAULT NULL`,
+    );
   } catch (error) {
     // Column already exists, ignore error
   }

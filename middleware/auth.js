@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import db from "../database.js";
 
 export function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
@@ -12,6 +13,32 @@ export function authenticateToken(req, res, next) {
     if (err) {
       return res.status(403).json({ error: "Invalid or expired token" });
     }
+
+    // Check if the user's tokens have been invalidated after this token was issued
+    const dbUser = db
+      .prepare(
+        "SELECT is_active, tokens_invalidated_after FROM users WHERE id = ?",
+      )
+      .get(user.id);
+
+    if (!dbUser) {
+      return res.status(403).json({ error: "User not found" });
+    }
+
+    if (dbUser.is_active === 0) {
+      return res.status(403).json({ error: "Akun tidak aktif" });
+    }
+
+    if (dbUser.tokens_invalidated_after) {
+      const invalidatedAt =
+        new Date(dbUser.tokens_invalidated_after).getTime() / 1000;
+      if (user.iat < invalidatedAt) {
+        return res
+          .status(401)
+          .json({ error: "Session telah diakhiri, silakan login kembali" });
+      }
+    }
+
     req.user = user;
     next();
   });
@@ -34,6 +61,27 @@ export function authenticateTeacher(req, res, next) {
       return res
         .status(403)
         .json({ error: "Access denied. Teacher role required." });
+    }
+
+    // Check if the teacher's tokens have been invalidated after this token was issued
+    const dbUser = db
+      .prepare(
+        "SELECT is_active, tokens_invalidated_after FROM users WHERE id = ?",
+      )
+      .get(user.id);
+
+    if (!dbUser) {
+      return res.status(403).json({ error: "User not found" });
+    }
+
+    if (dbUser.tokens_invalidated_after) {
+      const invalidatedAt =
+        new Date(dbUser.tokens_invalidated_after).getTime() / 1000;
+      if (user.iat < invalidatedAt) {
+        return res
+          .status(401)
+          .json({ error: "Session telah diakhiri, silakan login kembali" });
+      }
     }
 
     req.user = user;
