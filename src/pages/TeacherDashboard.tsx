@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { authAPI, teacherAPI } from "@/services/api";
+import * as XLSX from "xlsx";
 import { meetings, getMeetingId } from "@/data/meetings";
 import {
   Card,
@@ -284,6 +285,84 @@ const TeacherDashboard = () => {
       });
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const exportAbsensiToExcel = () => {
+    try {
+      // Filter students based on search
+      const filteredStudents = students.filter(
+        (s) =>
+          s.name.toLowerCase().includes(absensiSearch.toLowerCase()) ||
+          s.nim.toLowerCase().includes(absensiSearch.toLowerCase()),
+      );
+
+      // Prepare data for Excel
+      const excelData = filteredStudents.map((student) => {
+        const row: any = {
+          NIM: student.nim,
+          Nama: student.name,
+        };
+
+        // Add attendance for each meeting (M1-M20)
+        for (let i = 1; i <= 20; i++) {
+          const isPresent =
+            student.attendances?.some(
+              (a) => a.meeting_id === i && a.is_present,
+            ) ?? false;
+          row[`M${i}`] = isPresent ? "Hadir" : "Tidak Hadir";
+        }
+
+        // Add total attendance
+        const totalHadir =
+          student.attendances?.filter((a) => a.is_present).length ?? 0;
+        row["Total Hadir"] = totalHadir;
+        row["Total Meetings"] = 20;
+        row["Persentase"] = `${((totalHadir / 20) * 100).toFixed(1)}%`;
+
+        return row;
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 12 }, // NIM
+        { wch: 25 }, // Nama
+      ];
+      // Add width for M1-M20 columns
+      for (let i = 0; i < 20; i++) {
+        colWidths.push({ wch: 12 });
+      }
+      // Add width for summary columns
+      colWidths.push({ wch: 12 }); // Total Hadir
+      colWidths.push({ wch: 15 }); // Total Meetings
+      colWidths.push({ wch: 12 }); // Persentase
+      ws["!cols"] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Absensi");
+
+      // Generate filename with current date
+      const date = new Date();
+      const filename = `Absensi_${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+
+      toast({
+        title: "Berhasil",
+        description: `Data absensi berhasil diekspor ke ${filename}`,
+      });
+    } catch (error) {
+      console.error("Export error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengekspor data absensi",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1364,14 +1443,24 @@ const TeacherDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="mb-4 flex items-center gap-2">
-                  <FiSearch className="text-muted-foreground" />
-                  <Input
-                    placeholder="Cari mahasiswa berdasarkan Nama atau NIM..."
-                    value={absensiSearch}
-                    onChange={(e) => setAbsensiSearch(e.target.value)}
-                    className="max-w-sm"
-                  />
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    <FiSearch className="text-muted-foreground" />
+                    <Input
+                      placeholder="Cari mahasiswa berdasarkan Nama atau NIM..."
+                      value={absensiSearch}
+                      onChange={(e) => setAbsensiSearch(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
+                  <Button
+                    onClick={exportAbsensiToExcel}
+                    className="flex items-center gap-2"
+                    variant="outline"
+                  >
+                    <FiDownload className="w-4 h-4" />
+                    Export ke Excel
+                  </Button>
                 </div>
                 <div className="overflow-x-auto">
                   <Table className="min-w-max border-collapse">

@@ -804,7 +804,10 @@ function updateMeetingStats(userMeetingId) {
 // Download database endpoint (teacher only)
 app.get("/api/teacher/database/download", authenticateTeacher, (req, res) => {
   try {
-    const dbPath = path.join(__dirname, "database.sqlite");
+    // Use the same database path logic as database.js
+    const dbPath = process.env.DATABASE_PATH
+      ? path.join(process.env.DATABASE_PATH, "database.sqlite")
+      : path.join(__dirname, "database.sqlite");
 
     if (!fs.existsSync(dbPath)) {
       return res.status(404).json({ error: "Database file not found" });
