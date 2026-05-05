@@ -97,8 +97,6 @@ openedAtDate.setHours(15, 0, 0, 0);
 const closedAtDate = new Date(now);
 closedAtDate.setHours(23, 59, 0, 0);
 
-const openedAtToday = toLocalISO(openedAtDate);
-const closedAtToday = toLocalISO(closedAtDate);
 
 export const meetings: Meeting[] = [
   {
@@ -109,8 +107,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiFileText, { className: "text-primary" }),
     duration: 90,
     slides: slidesP1,
-    openedAt: toLocalISO(new Date("2026-04-01T19:00:00")),
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")),
+    openedAt: toLocalISO(new Date("2026-05-05T19:00:00")),
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")),
   },
   {
     id: "pertemuan-2",
@@ -120,8 +118,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiFile, { className: "text-primary" }),
     duration: 90,
     slides: slidesP2,
-    openedAt: toLocalISO(new Date("2026-04-01T19:00:00")), // Dibuka mulai 1 Apr 2026, jam 19:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-05T19:00:00")), // Dibuka mulai 1 Apr 2026, jam 19:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-3",
@@ -131,7 +129,7 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiScissors, { className: "text-primary" }),
     duration: 90,
     slides: slidesP3,
-    openedAt: toLocalISO(new Date("2026-04-02T19:00:00")), // Dibuka mulai 2 Apr 2026, jam 19:00
+    openedAt: toLocalISO(new Date("2026-05-06T19:00:00")), // Dibuka mulai 2 Apr 2026, jam 19:00
     closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
@@ -142,8 +140,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiBookmark, { className: "text-primary" }),
     duration: 90,
     slides: slidesP4,
-    openedAt: toLocalISO(new Date("2026-04-02T19:00:00")), // Dibuka mulai 2 Apr 2026, jam 19:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-06T19:00:00")), // Dibuka mulai 2 Apr 2026, jam 19:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-5",
@@ -153,8 +151,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiImage, { className: "text-primary" }),
     duration: 90,
     slides: slidesP5,
-    openedAt: toLocalISO(new Date("2026-04-06T15:00:00")), // Dibuka mulai 6 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-07T19:00:00")), // Dibuka mulai 6 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-6",
@@ -164,8 +162,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiGrid, { className: "text-primary" }),
     duration: 90,
     slides: slidesP6,
-    openedAt: toLocalISO(new Date("2026-04-06T15:00:00")), // Dibuka mulai 6 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-07T19:00:00")), // Dibuka mulai 6 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-7",
@@ -175,8 +173,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiBarChart2, { className: "text-primary" }),
     duration: 90,
     slides: slidesP7,
-    openedAt: toLocalISO(new Date("2026-04-07T19:00:00")), // Dibuka mulai 7 Apr 2026, jam 19:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-08T15:00:00")), // Dibuka mulai 7 Apr 2026, jam 19:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-8",
@@ -186,8 +184,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiTrendingUp, { className: "text-primary" }),
     duration: 90,
     slides: slidesP8,
-    openedAt: toLocalISO(new Date("2026-04-07T19:00:00")), // Dibuka mulai 8 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-08T15:00:00")), // Dibuka mulai 8 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-9",
@@ -197,8 +195,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiAlignLeft, { className: "text-primary" }),
     duration: 90,
     slides: slidesP9,
-    openedAt: toLocalISO(new Date("2026-04-08T15:00:00")), // Dibuka mulai 8 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-11T15:00:00")), // Dibuka mulai 8 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-10",
@@ -208,8 +206,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiType, { className: "text-primary" }),
     duration: 90,
     slides: slidesP10,
-    openedAt: toLocalISO(new Date("2026-04-08T15:00:00")), // Dibuka mulai 8 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-11T15:00:00")), // Dibuka mulai 8 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-11",
@@ -219,8 +217,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiPrinter, { className: "text-primary" }),
     duration: 90,
     slides: slidesP11,
-    openedAt: toLocalISO(new Date("2026-04-09T19:00:00")), // Dibuka mulai 9 Apr 2026, jam 19:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-12T19:00:00")), // Dibuka mulai 9 Apr 2026, jam 19:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-12",
@@ -230,8 +228,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiMonitor, { className: "text-primary" }),
     duration: 90,
     slides: slidesP12,
-    openedAt: toLocalISO(new Date("2026-04-09T19:00:00")), // Dibuka mulai 10 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-12T19:00:00")), // Dibuka mulai 10 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-13",
@@ -241,8 +239,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiFilm, { className: "text-primary" }),
     duration: 90,
     slides: slidesP13,
-    openedAt: toLocalISO(new Date("2026-04-10T15:00:00")), // Dibuka mulai 10 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-13T19:00:00")), // Dibuka mulai 10 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-14",
@@ -252,8 +250,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiLink, { className: "text-primary" }),
     duration: 90,
     slides: slidesP14,
-    openedAt: toLocalISO(new Date("2026-04-10T15:00:00")), // Dibuka mulai 11 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 27 Feb 2024, jam 18:00
+    openedAt: toLocalISO(new Date("2026-05-13T19:00:00")), // Dibuka mulai 11 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 27 Feb 2024, jam 18:00
   },
   {
     id: "pertemuan-15",
@@ -263,8 +261,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiBook, { className: "text-primary" }),
     duration: 90,
     slides: slidesP15,
-    openedAt: toLocalISO(new Date("2026-04-13T15:00:00")), // Dibuka mulai 13 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-18T15:00:00")), // Dibuka mulai 13 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-16",
@@ -274,8 +272,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiEdit3, { className: "text-primary" }),
     duration: 90,
     slides: slidesP16,
-    openedAt: toLocalISO(new Date("2026-04-13T15:00:00")), // Dibuka mulai 13 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-18T15:00:00")), // Dibuka mulai 13 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-17",
@@ -285,8 +283,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiArchive, { className: "text-primary" }),
     duration: 90,
     slides: slidesP17,
-    openedAt: toLocalISO(new Date("2026-04-14T19:00:00")), // Dibuka mulai 14 Apr 2026, jam 19:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-19T19:00:00")), // Dibuka mulai 14 Apr 2026, jam 19:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-18",
@@ -296,8 +294,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiDatabase, { className: "text-primary" }),
     duration: 90,
     slides: slidesP18,
-    openedAt: toLocalISO(new Date("2026-04-14T19:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
+    openedAt: toLocalISO(new Date("2026-05-19T19:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 2 Mar 2024, jam 18:00
   },
   {
     id: "pertemuan-19",
@@ -307,8 +305,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiAward, { className: "text-primary" }),
     duration: 90,
     slides: slidesP19,
-    openedAt: toLocalISO(new Date("2026-04-15T15:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-20T19:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-20",
@@ -318,8 +316,8 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiTarget, { className: "text-primary" }),
     duration: 90,
     slides: slidesP20,
-    openedAt: toLocalISO(new Date("2026-04-15T15:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-20T19:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-21",
@@ -329,7 +327,7 @@ export const meetings: Meeting[] = [
     icon: React.createElement(FiTarget, { className: "text-primary" }),
     duration: 90,
     slides: slidesP21,
-    openedAt: toLocalISO(new Date("2026-04-15T15:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    openedAt: toLocalISO(new Date("2026-05-20T19:00:00")), // Dibuka mulai 15 Apr 2026, jam 15:00
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
 ];
