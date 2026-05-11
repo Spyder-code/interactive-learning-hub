@@ -130,7 +130,7 @@ export const meetings: Meeting[] = [
     duration: 90,
     slides: slidesP3,
     openedAt: toLocalISO(new Date("2026-05-06T19:00:00")), // Dibuka mulai 2 Apr 2026, jam 19:00
-    closedAt: toLocalISO(new Date("2026-05-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
+    closedAt: toLocalISO(new Date("2026-06-10T23:59:00")), // Ditutup setelah 10 Mei 2026, jam 23:59
   },
   {
     id: "pertemuan-4",
