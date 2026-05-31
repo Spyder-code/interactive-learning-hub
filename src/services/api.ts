@@ -15,6 +15,14 @@ function getAuthHeaders() {
   };
 }
 
+export function getUploadUrl(filePath?: string | null) {
+  if (!filePath) return "";
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+
+  const normalizedPath = filePath.replace(/\\/g, "/").replace(/^storage\//, "");
+  return `${API_BASE_URL.replace("/api", "")}/uploads/${normalizedPath}`;
+}
+
 // Auth API
 export const authAPI = {
   async login(nim: string, password: string) {
@@ -81,6 +89,18 @@ export const authAPI = {
 
 // Meeting API
 export const meetingAPI = {
+  async getMeetingDefinitions() {
+    const response = await fetch(`${API_BASE_URL}/meeting-definitions`, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil daftar pertemuan");
+    }
+
+    return response.json();
+  },
+
   async getAllMeetings() {
     const response = await fetch(`${API_BASE_URL}/meetings`, {
       headers: getAuthHeaders(),
@@ -124,6 +144,36 @@ export const meetingAPI = {
 
     if (!response.ok) {
       throw new Error("Gagal mengambil status absensi");
+    }
+
+    return response.json();
+  },
+
+  async uploadAttendance(meetingNumber: number, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const token = getAuthToken();
+    const response = await fetch(
+      `${API_BASE_URL}/meetings/${meetingNumber}/attendance`,
+      {
+        method: "POST",
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      },
+    );
+
+    if (!response.ok) {
+      let errorMessage = "Gagal menyimpan absensi";
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (e) {
+        // Keep fallback message.
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -294,6 +344,41 @@ export const teacherAPI = {
     return response.json();
   },
 
+  async importStudents(students: Array<{ nim: string; name: string }>) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students/import`,
+      {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ students }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal import mahasiswa");
+    }
+
+    return response.json();
+  },
+
+  async deleteAllStudents() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/students`,
+      {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal menghapus semua mahasiswa");
+    }
+
+    return response.json();
+  },
+
   async getStatistics() {
     const response = await fetch(
       `${API_BASE_URL.replace("/api", "")}/api/teacher/statistics`,
@@ -355,6 +440,51 @@ export const teacherAPI = {
     return response.json();
   },
 
+  async getMeetingDefinitions() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/meeting-definitions`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil daftar meeting");
+    }
+
+    return response.json();
+  },
+
+  async updateMeetingDefinition(
+    meetingNumber: number,
+    data: {
+      title: string;
+      subtitle: string;
+      duration: number;
+      openedAt?: string | null;
+      closedAt?: string | null;
+      attendanceOpenedAt?: string | null;
+      attendanceClosedAt?: string | null;
+      isActive: boolean;
+    },
+  ) {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/meeting-definitions/${meetingNumber}`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal menyimpan meeting");
+    }
+
+    return response.json();
+  },
+
   async recalculateScore(meetingId: number, totalQuestionsActual: number) {
     const response = await fetch(
       `${API_BASE_URL.replace("/api", "")}/api/teacher/meetings/${meetingId}/recalculate`,
@@ -388,7 +518,7 @@ export const teacherAPI = {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "database.sqlite";
+    a.download = "database.json";
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

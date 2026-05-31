@@ -1,148 +1,319 @@
-import Database from "better-sqlite3";
+import mysql from "mysql2/promise";
 import bcrypt from "bcryptjs";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Use environment variable for database path, fallback to local for development
-const dbPath = process.env.DATABASE_PATH
-  ? path.join(process.env.DATABASE_PATH, "database.sqlite")
-  : path.join(__dirname, "database.sqlite");
+const dbConfig = {
+  host: process.env.DB_HOST || "127.0.0.1",
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER || process.env.MYSQL_USER || "ict_user",
+  password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "ict_password",
+  database: process.env.DB_NAME || process.env.ICT_DB_NAME || "ict_learning",
+  waitForConnections: true,
+  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
+  queueLimit: 0,
+  timezone: "+07:00",
+  multipleStatements: false,
+  decimalNumbers: true,
+};
 
-const db = new Database(dbPath);
+async function waitForMysql(maxRetries = 30) {
+  let lastError;
 
-// Membuat tabel-tabel
-function initializeDatabase() {
-  // Tabel users
-  db.exec(`
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      const connection = await mysql.createConnection({
+        host: dbConfig.host,
+        port: dbConfig.port,
+        user: dbConfig.user,
+        password: dbConfig.password,
+      });
+      await connection.query(
+        `CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\`
+         CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+      );
+      await connection.end();
+      return;
+    } catch (error) {
+      lastError = error;
+      console.log(
+        `Waiting for MySQL (${attempt}/${maxRetries}): ${error.message}`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
+  throw lastError;
+}
+
+await waitForMysql();
+
+const pool = mysql.createPool(dbConfig);
+
+const db = {
+  async exec(sql) {
+    const statements = sql
+      .split(";")
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    for (const statement of statements) {
+      await pool.execute(statement);
+    }
+  },
+
+  prepare(sql) {
+    return {
+      async get(...params) {
+        const [rows] = await pool.execute(sql, params);
+        return rows[0];
+      },
+      async all(...params) {
+        const [rows] = await pool.execute(sql, params);
+        return rows;
+      },
+      async run(...params) {
+        const [result] = await pool.execute(sql, params);
+        return {
+          ...result,
+          lastInsertRowid: result.insertId,
+          changes: result.affectedRows,
+        };
+      },
+    };
+  },
+};
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function toMysqlDateTime(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate(),
+  )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+    date.getSeconds(),
+  )}`;
+}
+
+function readMeetingSeedData() {
+  const source = fs.readFileSync(
+    path.join(__dirname, "src", "data", "meetings.ts"),
+    "utf8",
+  );
+
+  const meetingBlocks = source.match(/\{\s*id:\s*"pertemuan-\d+"[\s\S]*?\n\s*\}/g) || [];
+
+  return meetingBlocks
+    .map((block) => {
+      const value = (field) => {
+        const match = block.match(new RegExp(`${field}:\\s*"([^"]*)"`));
+        return match?.[1] || "";
+      };
+      const number = Number(block.match(/number:\s*(\d+)/)?.[1]);
+      const duration = Number(block.match(/duration:\s*(\d+)/)?.[1] || 0);
+      const openedAt = block.match(/openedAt:\s*toLocalISO\(new Date\("([^"]+)"\)\)/)?.[1];
+      const closedAt = block.match(/closedAt:\s*toLocalISO\(new Date\("([^"]+)"\)\)/)?.[1];
+
+      return {
+        id: value("id"),
+        meeting_number: number,
+        title: value("title"),
+        subtitle: value("subtitle"),
+        duration,
+        opened_at: toMysqlDateTime(openedAt),
+        closed_at: toMysqlDateTime(closedAt),
+      };
+    })
+    .filter((meeting) => meeting.id && Number.isFinite(meeting.meeting_number));
+}
+
+async function seedMeetings() {
+  const meetings = readMeetingSeedData();
+
+  const insert = db.prepare(`
+    INSERT IGNORE INTO meetings
+      (meeting_key, meeting_number, title, subtitle, duration, opened_at, closed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const meeting of meetings) {
+    await insert.run(
+      meeting.id,
+      meeting.meeting_number,
+      meeting.title,
+      meeting.subtitle,
+      meeting.duration,
+      meeting.opened_at,
+      meeting.closed_at,
+    );
+  }
+
+  console.log(`Meeting seed synced from meetings.ts: ${meetings.length} rows`);
+}
+
+async function ensureColumn(tableName, columnName, definition) {
+  const existingColumn = await db
+    .prepare(
+      `
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+        AND COLUMN_NAME = ?
+    `,
+    )
+    .get(tableName, columnName);
+
+  if (!existingColumn) {
+    await db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+async function initializeDatabase() {
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nim TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      name TEXT NOT NULL,
-      role TEXT DEFAULT 'student',
-      is_active INTEGER DEFAULT 1,
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      nim VARCHAR(64) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      role VARCHAR(32) DEFAULT 'student',
+      is_active TINYINT(1) DEFAULT 1,
       tokens_invalidated_after DATETIME DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  // Add is_active column if it doesn't exist (for existing databases)
-  try {
-    db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`);
-  } catch (error) {
-    // Column already exists, ignore error
-  }
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS meetings (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      meeting_key VARCHAR(64) UNIQUE NOT NULL,
+      meeting_number INT UNIQUE NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      subtitle VARCHAR(255) NOT NULL,
+      duration INT NOT NULL DEFAULT 90,
+      opened_at DATETIME DEFAULT NULL,
+      closed_at DATETIME DEFAULT NULL,
+      attendance_opened_at DATETIME DEFAULT NULL,
+      attendance_closed_at DATETIME DEFAULT NULL,
+      is_active TINYINT(1) DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
 
-  // Add tokens_invalidated_after column if it doesn't exist (for existing databases)
-  try {
-    db.exec(
-      `ALTER TABLE users ADD COLUMN tokens_invalidated_after DATETIME DEFAULT NULL`,
-    );
-  } catch (error) {
-    // Column already exists, ignore error
-  }
+  await ensureColumn("meetings", "attendance_opened_at", "DATETIME DEFAULT NULL");
+  await ensureColumn("meetings", "attendance_closed_at", "DATETIME DEFAULT NULL");
 
-  // Tabel meetings (menyimpan data meeting completion per user)
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS user_meetings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      meeting_id INTEGER NOT NULL,
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      user_id INT NOT NULL,
+      meeting_id INT NOT NULL,
       start_time DATETIME NOT NULL,
       end_time DATETIME,
-      duration_minutes INTEGER,
-      last_slide_index INTEGER DEFAULT 0,
-      total_questions INTEGER DEFAULT 0,
-      correct_answers INTEGER DEFAULT 0,
-      percentage REAL DEFAULT 0,
-      is_completed BOOLEAN DEFAULT 0,
+      duration_minutes INT,
+      last_slide_index INT DEFAULT 0,
+      total_questions INT DEFAULT 0,
+      correct_answers INT DEFAULT 0,
+      percentage DECIMAL(5,2) DEFAULT 0,
+      is_completed TINYINT(1) DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      UNIQUE(user_id, meeting_id)
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_user_meeting (user_id, meeting_id)
     )
   `);
 
-  // Tabel quiz answers (menyimpan jawaban quiz per user per meeting)
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS quiz_answers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_meeting_id INTEGER NOT NULL,
-      slide_id INTEGER NOT NULL,
-      question_index INTEGER NOT NULL,
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      user_meeting_id INT NOT NULL,
+      slide_id INT NOT NULL,
+      question_index INT NOT NULL,
       selected_option TEXT NOT NULL,
-      is_correct BOOLEAN NOT NULL,
-      question_type TEXT DEFAULT 'multiple-choice',
+      is_correct TINYINT(1) NOT NULL,
+      question_type VARCHAR(64) DEFAULT 'multiple-choice',
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id),
-      UNIQUE(user_meeting_id, slide_id, question_index)
+      FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_quiz_answer (user_meeting_id, slide_id, question_index)
     )
   `);
 
-  // Tabel task uploads (menyimpan info file upload per user per meeting)
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS task_uploads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_meeting_id INTEGER NOT NULL,
-      slide_id INTEGER NOT NULL,
-      task_index INTEGER NOT NULL,
-      file_name TEXT NOT NULL,
-      file_size INTEGER NOT NULL,
-      file_type TEXT NOT NULL,
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      user_meeting_id INT NOT NULL,
+      slide_id INT NOT NULL,
+      task_index INT NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      file_size INT NOT NULL,
+      file_type VARCHAR(255) NOT NULL,
       file_path TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id),
-      UNIQUE(user_meeting_id, slide_id, task_index)
+      FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_task_upload (user_meeting_id, slide_id, task_index)
     )
   `);
 
-  // Add file_path column if it doesn't exist (for existing databases)
-  try {
-    db.exec(`ALTER TABLE task_uploads ADD COLUMN file_path TEXT`);
-  } catch (error) {
-    // Column already exists, ignore error
-  }
-
-  // Tabel slide progress (menyimpan progress per slide)
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS slide_progress (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_meeting_id INTEGER NOT NULL,
-      slide_index INTEGER NOT NULL,
-      max_slide_reached INTEGER NOT NULL,
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      user_meeting_id INT NOT NULL,
+      slide_index INT NOT NULL,
+      max_slide_reached INT NOT NULL,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id),
-      UNIQUE(user_meeting_id, slide_index)
+      FOREIGN KEY (user_meeting_id) REFERENCES user_meetings(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_slide_progress (user_meeting_id, slide_index)
     )
   `);
 
-  // Tabel attendances (menyimpan absensi per meeting secara manual oleh teacher)
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS attendances (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      meeting_id INTEGER NOT NULL,
-      is_present BOOLEAN DEFAULT 0,
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      user_id INT NOT NULL,
+      meeting_id INT NOT NULL,
+      is_present TINYINT(1) DEFAULT 0,
+      file_name VARCHAR(255) DEFAULT NULL,
+      file_size INT DEFAULT NULL,
+      file_type VARCHAR(255) DEFAULT NULL,
+      file_path TEXT,
+      uploaded_at DATETIME DEFAULT NULL,
+      source VARCHAR(32) DEFAULT 'upload',
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      UNIQUE(user_id, meeting_id)
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_attendance (user_id, meeting_id)
     )
   `);
 
-  console.log("✅ Database initialized successfully");
+  await ensureColumn("attendances", "file_name", "VARCHAR(255) DEFAULT NULL");
+  await ensureColumn("attendances", "file_size", "INT DEFAULT NULL");
+  await ensureColumn("attendances", "file_type", "VARCHAR(255) DEFAULT NULL");
+  await ensureColumn("attendances", "file_path", "TEXT");
+  await ensureColumn("attendances", "uploaded_at", "DATETIME DEFAULT NULL");
+  await ensureColumn("attendances", "source", "VARCHAR(32) DEFAULT 'upload'");
 
-  // Insert default users jika belum ada
-  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get();
+  await seedMeetings();
+
+  const userCount = await db
+    .prepare("SELECT COUNT(*) as count FROM users")
+    .get();
   if (userCount.count === 0) {
-    insertDefaultUsers();
+    await insertDefaultUsers();
   }
+
+  console.log("Database initialized successfully");
 }
 
-// Insert default users untuk testing
-function insertDefaultUsers() {
+async function insertDefaultUsers() {
   const hashedPassword = bcrypt.hashSync("12345", 10);
 
   const additionalUsers = [
@@ -199,7 +370,6 @@ function insertDefaultUsers() {
       password: hashedPassword,
       role: "teacher",
     },
-    // additional students with password = their NIM
     ...additionalUsers.map((u) => ({
       ...u,
       password: bcrypt.hashSync(u.nim, 10),
@@ -210,75 +380,13 @@ function insertDefaultUsers() {
     "INSERT INTO users (nim, name, password, role) VALUES (?, ?, ?, ?)",
   );
 
-  const insertMany = db.transaction((users) => {
-    for (const user of users) {
-      insert.run(user.nim, user.name, user.password, user.role);
-    }
-  });
-
-  insertMany(users);
-  console.log(
-    "✅ Default users created:\n   Students - NIM: 2301010101-2301010103\n   Teacher  - NIM: TEACHER001\n   Password: 12345",
-  );
-}
-
-initializeDatabase();
-
-// Migration helper: Convert old TEXT meeting_id to INTEGER
-// Run this if you have existing data with string meeting_ids like "pertemuan-1"
-function migrateMeetingIdToInteger() {
-  try {
-    console.log("🔄 Starting meeting_id migration...");
-
-    // Check if there's any data with TEXT meeting_id
-    const oldData = db
-      .prepare(
-        "SELECT id, meeting_id FROM user_meetings WHERE typeof(meeting_id) = 'text'",
-      )
-      .all();
-
-    if (oldData.length === 0) {
-      console.log(
-        "✅ No migration needed - all meeting_ids are already integers",
-      );
-      return;
-    }
-
-    console.log(`Found ${oldData.length} records to migrate`);
-
-    // Update each record: convert "pertemuan-X" to X
-    const update = db.prepare(
-      "UPDATE user_meetings SET meeting_id = ? WHERE id = ?",
-    );
-    const updateMany = db.transaction((records) => {
-      for (const record of records) {
-        const meetingIdStr = String(record.meeting_id);
-        // Extract number from "pertemuan-X" format
-        const match = meetingIdStr.match(/\d+/);
-        if (match) {
-          const meetingNumber = parseInt(match[0]);
-          update.run(meetingNumber, record.id);
-          console.log(
-            `  ✓ Migrated record ${record.id}: "${meetingIdStr}" → ${meetingNumber}`,
-          );
-        }
-      }
-    });
-
-    updateMany(oldData);
-    console.log("✅ Migration completed successfully");
-  } catch (error) {
-    console.error("❌ Migration failed:", error.message);
-    console.log(
-      "⚠️ If you see 'datatype mismatch', you may need to recreate the table:",
-    );
-    console.log("   1. Backup your database.sqlite file");
-    console.log("   2. Delete database.sqlite");
-    console.log("   3. Restart the server to create a new database");
+  for (const user of users) {
+    await insert.run(user.nim, user.name, user.password, user.role);
   }
+
+  console.log("Default users created");
 }
 
-// Uncomment the line below to run migration (only run once)
-// migrateMeetingIdToInteger();
+await initializeDatabase();
 
 export default db;

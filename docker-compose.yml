@@ -1,42 +1,43 @@
-version: "3.8"
-
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     container_name: interactive-learning-backend
-    ports:
-      - "3002:3002"
+    env_file:
+      - ../../infra/.env
     environment:
       - PORT=3002
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-this}
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data
-    volumes:
-      - storage:/app/storage
-      - database:/app/data
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${ICT_DB_NAME:-ict_learning}
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - MINIO_BUCKET=${ICT_MINIO_BUCKET:-ict-uploads}
+    expose:
+      - "3002"
     restart: unless-stopped
     networks:
-      - app-network
+      - server_net
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
     container_name: interactive-learning-frontend
-    ports:
-      - "3001:3001"
     depends_on:
       - backend
+    expose:
+      - "3001"
     restart: unless-stopped
     networks:
-      - app-network
+      - server_net
 
 networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  storage:
-  database:
+  server_net:
+    external: true

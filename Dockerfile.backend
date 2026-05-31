@@ -14,12 +14,13 @@ RUN npm install
 COPY server.js ./
 COPY database.js ./
 COPY middleware ./middleware/
+COPY src ./src/
 
 # Create necessary directories
-RUN mkdir -p storage data
+RUN mkdir -p data
 
 # Expose backend port
-EXPOSE 3001
+EXPOSE 3002
 
 # Start the backend server
 CMD ["node", "server.js"]

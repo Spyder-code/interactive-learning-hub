@@ -4,19 +4,43 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import multer from "multer";
+import * as Minio from "minio";
 import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import db from "./database.js";
 import { authenticateToken, authenticateTeacher } from "./middleware/auth.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const MINIO_BUCKET = process.env.MINIO_BUCKET || "ict-uploads";
+
+const minioClient = new Minio.Client({
+  endPoint: process.env.MINIO_ENDPOINT || "127.0.0.1",
+  port: Number(process.env.MINIO_PORT || 9000),
+  useSSL: String(process.env.MINIO_USE_SSL || "false") === "true",
+  accessKey: process.env.MINIO_ACCESS_KEY || process.env.MINIO_ROOT_USER || "minioadmin",
+  secretKey: process.env.MINIO_SECRET_KEY || process.env.MINIO_ROOT_PASSWORD || "password",
+});
+
+let bucketReadyPromise = null;
+
+async function ensureUploadBucket() {
+  if (!bucketReadyPromise) {
+    bucketReadyPromise = (async () => {
+      const exists = await minioClient.bucketExists(MINIO_BUCKET);
+      if (!exists) {
+        await minioClient.makeBucket(MINIO_BUCKET);
+      }
+    })().catch((error) => {
+      bucketReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return bucketReadyPromise;
+}
 
 // Helper to get current datetime in Asia/Jakarta in format YYYY-MM-DD HH:MM:SS
 function getJakartaNow() {
@@ -24,6 +48,114 @@ function getJakartaNow() {
     timeZone: "Asia/Jakarta",
     hour12: false,
   });
+}
+
+function padDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function toMysqlDateTime(value) {
+  if (!value) return null;
+  const localDateTime = String(value).match(
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+
+  if (localDateTime) {
+    return `${localDateTime[1]}-${localDateTime[2]}-${localDateTime[3]} ${localDateTime[4]}:${localDateTime[5]}:${localDateTime[6] || "00"}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(
+    date.getDate(),
+  )} ${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}:${padDatePart(
+    date.getSeconds(),
+  )}`;
+}
+
+function sanitizeFilenamePart(value, fallback = "file") {
+  const sanitized = String(value || "")
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
+
+  return sanitized || fallback;
+}
+
+function buildObjectPath(nim, originalname) {
+  const ext = path.extname(originalname || "");
+  const basename = sanitizeFilenamePart(path.basename(originalname || "file", ext));
+  const filename = `${basename}_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}${ext}`;
+
+  return `storage/${sanitizeFilenamePart(nim, "unknown")}/${filename}`;
+}
+
+function filePathToObjectKey(filePath) {
+  const normalizedPath = String(filePath || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+
+  if (/^https?:\/\//i.test(normalizedPath)) {
+    try {
+      const uploadPath = new URL(normalizedPath).pathname.replace(/^\/uploads\//, "");
+      return filePathToObjectKey(uploadPath);
+    } catch (error) {
+      return "";
+    }
+  }
+
+  return normalizedPath.replace(/^storage\//, "");
+}
+
+async function uploadToObjectStorage(file, nim) {
+  await ensureUploadBucket();
+
+  const filePath = buildObjectPath(nim, file.originalname);
+  const objectKey = filePathToObjectKey(filePath);
+
+  await minioClient.putObject(MINIO_BUCKET, objectKey, file.buffer, file.size, {
+    "Content-Type": file.mimetype,
+    "X-Amz-Meta-Original-Name": encodeURIComponent(file.originalname),
+  });
+
+  return filePath;
+}
+
+async function deleteFromObjectStorage(filePath) {
+  const objectKey = filePathToObjectKey(filePath);
+  if (!objectKey) return;
+
+  try {
+    await ensureUploadBucket();
+    await minioClient.removeObject(MINIO_BUCKET, objectKey);
+  } catch (error) {
+    if (error?.code !== "NoSuchKey" && error?.code !== "NotFound") {
+      console.warn(`Failed to delete object ${objectKey}:`, error.message);
+    }
+  }
+}
+
+async function deleteUploadedObjects(filePaths) {
+  const uniquePaths = [...new Set(filePaths.filter(Boolean))];
+  if (uniquePaths.length === 0) return;
+
+  for (const filePath of uniquePaths) {
+    const objectKey = filePathToObjectKey(filePath);
+    if (!objectKey) continue;
+
+    try {
+      await ensureUploadBucket();
+      await minioClient.removeObject(MINIO_BUCKET, objectKey);
+    } catch (error) {
+      if (error?.code !== "NoSuchKey" && error?.code !== "NotFound") {
+        throw error;
+      }
+    }
+  }
 }
 
 // Allowed file types: images and office files (Word, Excel, PowerPoint)
@@ -34,6 +166,8 @@ const ALLOWED_FILE_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
+  "image/heic",
+  "image/heif",
   // Word
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -47,9 +181,55 @@ const ALLOWED_FILE_TYPES = [
   "application/pdf",
 ];
 
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
+
+const ALLOWED_FILE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".heic",
+  ".heif",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".ppsx",
+  ".pdf",
+];
+
+const ALLOWED_IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".heic",
+  ".heif",
+];
+
+function isAllowedUpload(file, allowedTypes, allowedExtensions) {
+  const extension = path.extname(file.originalname || "").toLowerCase();
+  return (
+    allowedTypes.includes(file.mimetype) ||
+    allowedExtensions.includes(extension)
+  );
+}
+
 // File filter for multer
 const fileFilter = (req, file, cb) => {
-  if (ALLOWED_FILE_TYPES.includes(file.mimetype)) {
+  if (isAllowedUpload(file, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS)) {
     cb(null, true);
   } else {
     cb(
@@ -61,42 +241,61 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Multer storage configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Get user NIM from authenticated user
-    const nim = req.user?.nim;
-    if (!nim) {
-      return cb(new Error("User not authenticated"));
-    }
+const imageFileFilter = (req, file, cb) => {
+  if (isAllowedUpload(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error("Invalid file type. Only image screenshots are allowed."),
+      false,
+    );
+  }
+};
 
-    // Create directory path: storage/{nim}/
-    const uploadDir = path.join(__dirname, "storage", nim);
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate filename: original name with timestamp to avoid conflicts
-    const ext = path.extname(file.originalname);
-    const basename = path.basename(file.originalname, ext);
-    const filename = `${basename}_${Date.now()}${ext}`;
-    cb(null, filename);
-  },
-});
+// Keep upload content in memory, then persist it to MinIO after route validation.
+const storage = multer.memoryStorage();
 
 // Multer upload middleware (10MB max file size)
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: MAX_UPLOAD_SIZE,
   },
 });
+
+const attendanceUpload = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: MAX_UPLOAD_SIZE,
+  },
+});
+
+function handleMulter(middleware) {
+  return (req, res, next) => {
+    middleware(req, res, (error) => {
+      if (!error) {
+        return next();
+      }
+
+      if (error instanceof multer.MulterError) {
+        const messages = {
+          LIMIT_FILE_SIZE: "Ukuran file maksimal 10MB",
+          LIMIT_UNEXPECTED_FILE: "Field upload tidak valid",
+        };
+
+        return res.status(400).json({
+          error: messages[error.code] || error.message || "Upload tidak valid",
+        });
+      }
+
+      return res.status(400).json({
+        error: error.message || "Upload tidak valid",
+      });
+    });
+  };
+}
 
 // Middleware
 // CORS configuration
@@ -105,16 +304,23 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or Postman)
     if (!origin) return callback(null, true);
 
-    // List of allowed origins
-    const allowedOrigins = [
-      "https://ict.zhaf.my.id",
-      "https://ict.mediku.my.id",
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "http://localhost:8080",
-    ];
+    const allowedOrigins = (
+      process.env.CORS_ORIGINS ||
+      [
+        "http://ict.local",
+        "https://ict.local",
+        "https://ict.zhaf.my.id",
+        "https://ict.mediku.my.id",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8080",
+      ].join(",")
+    )
+      .split(",")
+      .map((allowedOrigin) => allowedOrigin.trim())
+      .filter(Boolean);
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
@@ -130,13 +336,57 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Serve uploaded files statically from storage directory
-app.use("/uploads", express.static(path.join(__dirname, "storage")));
+// Serve uploaded files through the API while the bytes live in MinIO.
+app.get(/^\/uploads\/(.+)/, async (req, res) => {
+  const objectKey = filePathToObjectKey(req.params[0]);
+
+  try {
+    await ensureUploadBucket();
+    const stat = await minioClient.statObject(MINIO_BUCKET, objectKey);
+    const stream = await minioClient.getObject(MINIO_BUCKET, objectKey);
+
+    if (stat.metaData?.["content-type"]) {
+      res.setHeader("Content-Type", stat.metaData["content-type"]);
+    }
+    if (stat.size) {
+      res.setHeader("Content-Length", stat.size);
+    }
+    res.setHeader("Cache-Control", "private, max-age=3600");
+
+    stream.on("error", (error) => {
+      console.error("Upload stream error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Gagal memuat file" });
+      } else {
+        res.destroy(error);
+      }
+    });
+    stream.pipe(res);
+  } catch (error) {
+    if (error?.code === "NoSuchKey" || error?.code === "NotFound") {
+      return res.status(404).json({ error: "File tidak ditemukan" });
+    }
+
+    console.error("Get upload error:", error);
+    res.status(500).json({ error: "Gagal memuat file" });
+  }
+});
+
+app.get("/api/health", async (req, res) => {
+  try {
+    await db.prepare("SELECT 1 AS ok").get();
+    await ensureUploadBucket();
+    res.json({ status: "ok", database: "ok", objectStorage: "ok" });
+  } catch (error) {
+    console.error("Health check error:", error);
+    res.status(500).json({ status: "error", database: "error", objectStorage: "error" });
+  }
+});
 
 // ==================== AUTH ROUTES ====================
 
 // Login endpoint
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { nim, password } = req.body;
 
   if (!nim || !password) {
@@ -144,7 +394,7 @@ app.post("/api/auth/login", (req, res) => {
   }
 
   try {
-    const user = db.prepare("SELECT * FROM users WHERE nim = ?").get(nim);
+    const user = await db.prepare("SELECT * FROM users WHERE nim = ?").get(nim);
 
     if (!user) {
       return res.status(401).json({ error: "NIM atau password salah" });
@@ -191,7 +441,7 @@ app.post("/api/auth/login", (req, res) => {
 });
 
 // Register endpoint (optional)
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   const { nim, password, name, role } = req.body;
 
   if (!nim || !password || !name) {
@@ -199,7 +449,7 @@ app.post("/api/auth/register", (req, res) => {
   }
 
   try {
-    const existingUser = db
+    const existingUser = await db
       .prepare("SELECT * FROM users WHERE nim = ?")
       .get(nim);
 
@@ -209,7 +459,7 @@ app.post("/api/auth/register", (req, res) => {
 
     const hashedPassword = bcrypt.hashSync(password, 10);
     const userRole = role || "student";
-    const result = db
+    const result = await db
       .prepare(
         "INSERT INTO users (nim, name, password, role) VALUES (?, ?, ?, ?)",
       )
@@ -231,16 +481,46 @@ app.post("/api/auth/register", (req, res) => {
 });
 
 // Verify token endpoint
-app.get("/api/auth/verify", authenticateToken, (req, res) => {
+app.get("/api/auth/verify", authenticateToken, async (req, res) => {
   res.json({ user: req.user });
 });
 
 // ==================== MEETING ROUTES ====================
 
-// Get all meetings for user
-app.get("/api/meetings", authenticateToken, (req, res) => {
+app.get("/api/meeting-definitions", authenticateToken, async (req, res) => {
   try {
-    const userMeetings = db
+    const meetings = await db
+      .prepare(
+        `
+        SELECT
+          meeting_key as id,
+          meeting_number as number,
+          title,
+          subtitle,
+          duration,
+          opened_at as openedAt,
+          closed_at as closedAt,
+          attendance_opened_at as attendanceOpenedAt,
+          attendance_closed_at as attendanceClosedAt,
+          is_active as isActive
+        FROM meetings
+        WHERE is_active = 1
+        ORDER BY meeting_number ASC
+      `,
+      )
+      .all();
+
+    res.json(meetings);
+  } catch (error) {
+    console.error("Get meeting definitions error:", error);
+    res.status(500).json({ error: "Gagal mengambil daftar pertemuan" });
+  }
+});
+
+// Get all meetings for user
+app.get("/api/meetings", authenticateToken, async (req, res) => {
+  try {
+    const userMeetings = await db
       .prepare(
         `
       SELECT * FROM user_meetings 
@@ -258,9 +538,9 @@ app.get("/api/meetings", authenticateToken, (req, res) => {
 });
 
 // Get all meetings with completion status (for meeting selection page)
-app.get("/api/meetings/all-status", authenticateToken, (req, res) => {
+app.get("/api/meetings/all-status", authenticateToken, async (req, res) => {
   try {
-    const userMeetings = db
+    const userMeetings = await db
       .prepare(
         `
       SELECT 
@@ -300,13 +580,21 @@ app.get("/api/meetings/all-status", authenticateToken, (req, res) => {
   }
 });
 
-// Get personal manual attendances (for students)
-app.get("/api/attendances/me", authenticateToken, (req, res) => {
+// Get personal upload-based attendances (for students)
+app.get("/api/attendances/me", authenticateToken, async (req, res) => {
   try {
-    const attendances = db
+    const attendances = await db
       .prepare(
         `
-      SELECT meeting_id, is_present
+      SELECT
+        meeting_id,
+        is_present,
+        file_name,
+        file_size,
+        file_type,
+        file_path,
+        uploaded_at,
+        source
       FROM attendances 
       WHERE user_id = ?
     `,
@@ -315,7 +603,15 @@ app.get("/api/attendances/me", authenticateToken, (req, res) => {
 
     const attendanceMap = {};
     attendances.forEach((a) => {
-      attendanceMap[a.meeting_id] = a.is_present === 1;
+      attendanceMap[a.meeting_id] = {
+        isPresent: a.is_present === 1 && Boolean(a.file_path),
+        fileName: a.file_name,
+        fileSize: a.file_size,
+        fileType: a.file_type,
+        filePath: a.file_path,
+        uploadedAt: a.uploaded_at,
+        source: a.source,
+      };
     });
 
     res.json(attendanceMap);
@@ -325,12 +621,131 @@ app.get("/api/attendances/me", authenticateToken, (req, res) => {
   }
 });
 
+// Upload meeting attendance screenshot. A valid upload marks the student present.
+app.post(
+  "/api/meetings/:meetingId/attendance",
+  authenticateToken,
+  handleMulter(attendanceUpload.single("file")),
+  async (req, res) => {
+    const meetingId = parseInt(req.params.meetingId);
+    let newFilePath = null;
+
+    try {
+      if (!Number.isInteger(meetingId) || meetingId <= 0) {
+        return res.status(400).json({ error: "Nomor pertemuan tidak valid" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "Screenshot Zoom wajib diupload" });
+      }
+
+      const meeting = await db
+        .prepare(
+          `
+          SELECT
+            meeting_number,
+            attendance_opened_at,
+            attendance_closed_at,
+            is_active
+          FROM meetings
+          WHERE meeting_number = ?
+        `,
+        )
+        .get(meetingId);
+
+      if (!meeting || meeting.is_active === 0) {
+        return res
+          .status(404)
+          .json({ error: "Pertemuan tidak ditemukan atau tidak aktif" });
+      }
+
+      const now = new Date();
+      if (meeting.attendance_opened_at && now < new Date(meeting.attendance_opened_at)) {
+        return res
+          .status(400)
+          .json({ error: "Absensi belum dibuka untuk pertemuan ini" });
+      }
+
+      if (meeting.attendance_closed_at && now > new Date(meeting.attendance_closed_at)) {
+        return res
+          .status(400)
+          .json({ error: "Absensi sudah ditutup untuk pertemuan ini" });
+      }
+
+      const existingAttendance = await db
+        .prepare(
+          `
+          SELECT file_path
+          FROM attendances
+          WHERE user_id = ? AND meeting_id = ?
+        `,
+        )
+        .get(req.user.id, meetingId);
+
+      const uploadedAt = getJakartaNow();
+      newFilePath = await uploadToObjectStorage(req.file, req.user.nim);
+
+      await db
+        .prepare(
+          `
+          INSERT INTO attendances
+            (user_id, meeting_id, is_present, file_name, file_size, file_type, file_path, uploaded_at, source, timestamp)
+          VALUES (?, ?, 1, ?, ?, ?, ?, ?, 'upload', ?)
+          ON DUPLICATE KEY UPDATE
+            is_present = 1,
+            file_name = VALUES(file_name),
+            file_size = VALUES(file_size),
+            file_type = VALUES(file_type),
+            file_path = VALUES(file_path),
+            uploaded_at = VALUES(uploaded_at),
+            source = 'upload',
+            timestamp = VALUES(timestamp)
+        `,
+        )
+        .run(
+          req.user.id,
+          meetingId,
+          req.file.originalname,
+          req.file.size,
+          req.file.mimetype,
+          newFilePath,
+          uploadedAt,
+          uploadedAt,
+        );
+
+      if (existingAttendance?.file_path) {
+        await deleteFromObjectStorage(existingAttendance.file_path);
+      }
+
+      res.json({
+        message: "Absensi berhasil disimpan",
+        attendance: {
+          meetingId,
+          isPresent: true,
+          fileName: req.file.originalname,
+          fileSize: req.file.size,
+          fileType: req.file.mimetype,
+          filePath: newFilePath,
+          uploadedAt,
+          source: "upload",
+        },
+      });
+    } catch (error) {
+      console.error("Upload attendance error:", error);
+      if (newFilePath) {
+        await deleteFromObjectStorage(newFilePath);
+      }
+      res.status(500).json({ error: "Gagal menyimpan absensi" });
+    }
+  },
+);
+
 // Get specific meeting data
-app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
+app.get("/api/meetings/:meetingId", authenticateToken, async (req, res) => {
   const meetingId = parseInt(req.params.meetingId);
 
   try {
-    let userMeeting = db
+    let userMeeting = await db
       .prepare(
         `
       SELECT * FROM user_meetings 
@@ -341,8 +756,8 @@ app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
 
     // If meeting doesn't exist, create it
     if (!userMeeting) {
-      const result = db
-        .prepare(
+      const result = await db
+      .prepare(
           `
         INSERT INTO user_meetings (user_id, meeting_id, start_time)
         VALUES (?, ?, ?)
@@ -350,13 +765,13 @@ app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
         )
         .run(req.user.id, meetingId, getJakartaNow());
 
-      userMeeting = db
+      userMeeting = await db
         .prepare(`SELECT * FROM user_meetings WHERE id = ?`)
         .get(result.lastInsertRowid);
     }
 
     // Get quiz answers
-    const quizAnswers = db
+    const quizAnswers = await db
       .prepare(
         `
       SELECT * FROM quiz_answers 
@@ -366,7 +781,7 @@ app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
       .all(userMeeting.id);
 
     // Get task uploads
-    const taskUploads = db
+    const taskUploads = await db
       .prepare(
         `
       SELECT * FROM task_uploads 
@@ -376,7 +791,7 @@ app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
       .all(userMeeting.id);
 
     // Get slide progress
-    const slideProgress = db
+    const slideProgress = await db
       .prepare(
         `
       SELECT * FROM slide_progress 
@@ -400,14 +815,14 @@ app.get("/api/meetings/:meetingId", authenticateToken, (req, res) => {
 });
 
 // Save quiz answer
-app.post("/api/meetings/:meetingId/quiz", authenticateToken, (req, res) => {
+app.post("/api/meetings/:meetingId/quiz", authenticateToken, async (req, res) => {
   const meetingId = parseInt(req.params.meetingId);
   const { slideId, questionIndex, selectedOption, isCorrect, questionType } =
     req.body;
 
   try {
     // Get or create user meeting
-    let userMeeting = db
+    let userMeeting = await db
       .prepare(
         `
       SELECT * FROM user_meetings 
@@ -417,8 +832,8 @@ app.post("/api/meetings/:meetingId/quiz", authenticateToken, (req, res) => {
       .get(req.user.id, meetingId);
 
     if (!userMeeting) {
-      const result = db
-        .prepare(
+      const result = await db
+      .prepare(
           `
         INSERT INTO user_meetings (user_id, meeting_id, start_time)
         VALUES (?, ?, ?)
@@ -426,17 +841,22 @@ app.post("/api/meetings/:meetingId/quiz", authenticateToken, (req, res) => {
         )
         .run(req.user.id, meetingId, getJakartaNow());
 
-      userMeeting = db
+      userMeeting = await db
         .prepare(`SELECT * FROM user_meetings WHERE id = ?`)
         .get(result.lastInsertRowid);
     }
 
     // Insert or replace quiz answer
-    db.prepare(
+    await db.prepare(
       `
-      INSERT OR REPLACE INTO quiz_answers 
+      INSERT INTO quiz_answers
       (user_meeting_id, slide_id, question_index, selected_option, is_correct, question_type)
       VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        selected_option = VALUES(selected_option),
+        is_correct = VALUES(is_correct),
+        question_type = VALUES(question_type),
+        timestamp = CURRENT_TIMESTAMP
     `,
     ).run(
       userMeeting.id,
@@ -448,7 +868,7 @@ app.post("/api/meetings/:meetingId/quiz", authenticateToken, (req, res) => {
     );
 
     // Update meeting stats
-    updateMeetingStats(userMeeting.id);
+    await updateMeetingStats(userMeeting.id);
 
     res.json({ message: "Jawaban berhasil disimpan" });
   } catch (error) {
@@ -461,10 +881,11 @@ app.post("/api/meetings/:meetingId/quiz", authenticateToken, (req, res) => {
 app.post(
   "/api/meetings/:meetingId/task",
   authenticateToken,
-  upload.single("file"),
-  (req, res) => {
+  handleMulter(upload.single("file")),
+  async (req, res) => {
     const meetingId = parseInt(req.params.meetingId);
     const { slideId, taskIndex } = req.body;
+    let newFilePath = null;
 
     try {
       // Validate required fields
@@ -480,8 +901,8 @@ app.post(
       }
 
       // Get or create user meeting
-      let userMeeting = db
-        .prepare(
+      let userMeeting = await db
+      .prepare(
           `
       SELECT * FROM user_meetings 
       WHERE user_id = ? AND meeting_id = ?
@@ -490,8 +911,8 @@ app.post(
         .get(req.user.id, meetingId);
 
       if (!userMeeting) {
-        const result = db
-          .prepare(
+        const result = await db
+      .prepare(
             `
         INSERT INTO user_meetings (user_id, meeting_id, start_time)
         VALUES (?, ?, ?)
@@ -499,14 +920,14 @@ app.post(
           )
           .run(req.user.id, meetingId, getJakartaNow());
 
-        userMeeting = db
+        userMeeting = await db
           .prepare(`SELECT * FROM user_meetings WHERE id = ?`)
           .get(result.lastInsertRowid);
       }
 
       // Delete old file if exists
-      const existingUpload = db
-        .prepare(
+      const existingUpload = await db
+      .prepare(
           `
       SELECT file_path FROM task_uploads 
       WHERE user_meeting_id = ? AND slide_id = ? AND task_index = ?
@@ -514,26 +935,20 @@ app.post(
         )
         .get(userMeeting.id, slideId, taskIndex);
 
-      if (existingUpload && existingUpload.file_path) {
-        const oldFilePath = path.join(__dirname, existingUpload.file_path);
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-        }
-      }
-
-      // Create relative file path for database
-      const relativePath = path.join(
-        "storage",
-        req.user.nim,
-        req.file.filename,
-      );
+      newFilePath = await uploadToObjectStorage(req.file, req.user.nim);
 
       // Insert or replace task upload
-      db.prepare(
+      await db.prepare(
         `
-      INSERT OR REPLACE INTO task_uploads 
+      INSERT INTO task_uploads
       (user_meeting_id, slide_id, task_index, file_name, file_size, file_type, file_path)
       VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        file_name = VALUES(file_name),
+        file_size = VALUES(file_size),
+        file_type = VALUES(file_type),
+        file_path = VALUES(file_path),
+        timestamp = CURRENT_TIMESTAMP
     `,
       ).run(
         userMeeting.id,
@@ -542,8 +957,12 @@ app.post(
         req.file.originalname,
         req.file.size,
         req.file.mimetype,
-        relativePath,
+        newFilePath,
       );
+
+      if (existingUpload?.file_path) {
+        await deleteFromObjectStorage(existingUpload.file_path);
+      }
 
       res.json({
         message: "Task berhasil disimpan",
@@ -551,14 +970,13 @@ app.post(
           name: req.file.originalname,
           size: req.file.size,
           type: req.file.mimetype,
-          path: relativePath,
+          path: newFilePath,
         },
       });
     } catch (error) {
       console.error("Save task error:", error);
-      // Delete uploaded file if database insert fails
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+      if (newFilePath) {
+        await deleteFromObjectStorage(newFilePath);
       }
       res.status(500).json({ error: "Gagal menyimpan task" });
     }
@@ -566,13 +984,13 @@ app.post(
 );
 
 // Delete task upload
-app.delete("/api/meetings/:meetingId/task", authenticateToken, (req, res) => {
+app.delete("/api/meetings/:meetingId/task", authenticateToken, async (req, res) => {
   const meetingId = parseInt(req.params.meetingId);
   const { slideId, taskIndex } = req.body;
 
   try {
     // Get user meeting
-    const userMeeting = db
+    const userMeeting = await db
       .prepare(
         `
       SELECT * FROM user_meetings 
@@ -586,7 +1004,7 @@ app.delete("/api/meetings/:meetingId/task", authenticateToken, (req, res) => {
     }
 
     // Get file path before deleting
-    const upload = db
+    const upload = await db
       .prepare(
         `
       SELECT file_path FROM task_uploads 
@@ -596,19 +1014,15 @@ app.delete("/api/meetings/:meetingId/task", authenticateToken, (req, res) => {
       .get(userMeeting.id, slideId, taskIndex);
 
     // Delete from database
-    db.prepare(
+    await db.prepare(
       `
       DELETE FROM task_uploads 
       WHERE user_meeting_id = ? AND slide_id = ? AND task_index = ?
     `,
     ).run(userMeeting.id, slideId, taskIndex);
 
-    // Delete physical file if exists
-    if (upload && upload.file_path) {
-      const filePath = path.join(__dirname, upload.file_path);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+    if (upload?.file_path) {
+      await deleteFromObjectStorage(upload.file_path);
     }
 
     res.json({ message: "Task berhasil dihapus" });
@@ -619,13 +1033,13 @@ app.delete("/api/meetings/:meetingId/task", authenticateToken, (req, res) => {
 });
 
 // Update slide progress
-app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
+app.post("/api/meetings/:meetingId/progress", authenticateToken, async (req, res) => {
   const meetingId = parseInt(req.params.meetingId);
   const { slideIndex, maxSlideReached } = req.body;
 
   try {
     // Get or create user meeting
-    let userMeeting = db
+    let userMeeting = await db
       .prepare(
         `
       SELECT * FROM user_meetings 
@@ -635,8 +1049,8 @@ app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
       .get(req.user.id, meetingId);
 
     if (!userMeeting) {
-      const result = db
-        .prepare(
+      const result = await db
+      .prepare(
           `
         INSERT INTO user_meetings (user_id, meeting_id, start_time)
         VALUES (?, ?, ?)
@@ -644,22 +1058,25 @@ app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
         )
         .run(req.user.id, meetingId, getJakartaNow());
 
-      userMeeting = db
+      userMeeting = await db
         .prepare(`SELECT * FROM user_meetings WHERE id = ?`)
         .get(result.lastInsertRowid);
     }
 
     // Update or insert slide progress
-    db.prepare(
+    await db.prepare(
       `
-      INSERT OR REPLACE INTO slide_progress 
+      INSERT INTO slide_progress
       (user_meeting_id, slide_index, max_slide_reached)
       VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        max_slide_reached = VALUES(max_slide_reached),
+        timestamp = CURRENT_TIMESTAMP
     `,
     ).run(userMeeting.id, slideIndex, maxSlideReached);
 
     // Update last_slide_index in user_meetings
-    db.prepare(
+    await db.prepare(
       `
       UPDATE user_meetings 
       SET last_slide_index = ?, updated_at = ?
@@ -675,7 +1092,7 @@ app.post("/api/meetings/:meetingId/progress", authenticateToken, (req, res) => {
 });
 
 // Complete meeting
-app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
+app.post("/api/meetings/:meetingId/complete", authenticateToken, async (req, res) => {
   const meetingId = parseInt(req.params.meetingId);
   const { totalQuestions, correctAnswers, percentage } = req.body;
 
@@ -701,7 +1118,7 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
         .json({ error: "Percentage must be between 0-100" });
     }
 
-    const userMeeting = db
+    const userMeeting = await db
       .prepare(
         `
       SELECT * FROM user_meetings 
@@ -741,7 +1158,7 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
     // NOTE: This is the ONLY place where total_questions and percentage should be set correctly.
     // The frontend calculates these based on the actual meeting content (all quiz slides).
     const endTimeJakarta = getJakartaNow();
-    db.prepare(
+    await db.prepare(
       `
       UPDATE user_meetings 
       SET end_time = ?,
@@ -772,10 +1189,10 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, (req, res) => {
 
 // ==================== HELPER FUNCTIONS ====================
 
-function updateMeetingStats(userMeetingId) {
+async function updateMeetingStats(userMeetingId) {
   // Count how many questions have been answered correctly
-  const answers = db
-    .prepare(
+  const answers = await db
+      .prepare(
       `
     SELECT COUNT(*) as total, SUM(is_correct) as correct 
     FROM quiz_answers 
@@ -789,50 +1206,54 @@ function updateMeetingStats(userMeetingId) {
   // - percentage will be calculated correctly when the meeting is completed
   // This prevents incorrect data display in admin dashboard before meeting completion.
 
-  db.prepare(
+  await db.prepare(
     `
     UPDATE user_meetings 
     SET correct_answers = ?,
         updated_at = ?
     WHERE id = ?
   `,
-  ).run(answers.correct, getJakartaNow(), userMeetingId);
+  ).run(answers.correct || 0, getJakartaNow(), userMeetingId);
 }
 
 // ==================== TEACHER ROUTES ====================
 
 // Download database endpoint (teacher only)
-app.get("/api/teacher/database/download", authenticateTeacher, (req, res) => {
+app.get("/api/teacher/database/download", authenticateTeacher, async (req, res) => {
   try {
-    // Use the same database path logic as database.js
-    const dbPath = process.env.DATABASE_PATH
-      ? path.join(process.env.DATABASE_PATH, "database.sqlite")
-      : path.join(__dirname, "database.sqlite");
+    const tableNames = [
+      "meetings",
+      "users",
+      "user_meetings",
+      "quiz_answers",
+      "task_uploads",
+      "slide_progress",
+      "attendances",
+    ];
+    const exportData = {};
 
-    if (!fs.existsSync(dbPath)) {
-      return res.status(404).json({ error: "Database file not found" });
+    for (const tableName of tableNames) {
+      exportData[tableName] = await db
+        .prepare(`SELECT * FROM ${tableName}`)
+        .all();
     }
 
-    res.download(dbPath, "database.sqlite", (err) => {
-      if (err) {
-        console.error("Download database error:", err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Gagal mengunduh database" });
-        }
-      }
-    });
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="database-export-${Date.now()}.json"`,
+    );
+    res.send(JSON.stringify(exportData, null, 2));
   } catch (error) {
-    console.error("Download database error:", error);
-    res
-      .status(500)
-      .json({ error: "Terjadi kesalahan sistem saat mengunduh database" });
+    console.error("Download database export error:", error);
+    res.status(500).json({ error: "Gagal mengekspor database" });
   }
 });
 
 // Get all students (teacher only)
-app.get("/api/teacher/students", authenticateTeacher, (req, res) => {
+app.get("/api/teacher/students", authenticateTeacher, async (req, res) => {
   try {
-    const students = db
+    const students = await db
       .prepare(
         `
         SELECT id, nim, name, created_at 
@@ -850,10 +1271,211 @@ app.get("/api/teacher/students", authenticateTeacher, (req, res) => {
   }
 });
 
-// Get all students with meeting summary (teacher only)
-app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
+// Import students from teacher dashboard. New student passwords default to NIM.
+app.post("/api/teacher/students/import", authenticateTeacher, async (req, res) => {
+  const { students } = req.body;
+
   try {
-    const studentsRaw = db
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ error: "Data mahasiswa kosong" });
+    }
+
+    if (students.length > 1000) {
+      return res.status(400).json({ error: "Maksimal 1000 mahasiswa per import" });
+    }
+
+    const normalizedStudents = [];
+    const seenNims = new Set();
+    const invalidRows = [];
+
+    students.forEach((student, index) => {
+      const nim = String(student?.nim || "").trim();
+      const name = String(student?.name || "").trim();
+
+      if (!nim || !name) {
+        invalidRows.push(index + 1);
+        return;
+      }
+
+      if (seenNims.has(nim)) {
+        return;
+      }
+
+      seenNims.add(nim);
+      normalizedStudents.push({ nim, name });
+    });
+
+    if (normalizedStudents.length === 0) {
+      return res.status(400).json({ error: "Tidak ada baris valid. Pastikan kolom NIM dan Nama terisi." });
+    }
+
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const student of normalizedStudents) {
+      const existingUser = await db
+        .prepare("SELECT id, role FROM users WHERE nim = ?")
+        .get(student.nim);
+
+      if (existingUser && existingUser.role !== "student") {
+        skipped += 1;
+        continue;
+      }
+
+      if (existingUser) {
+        await db
+          .prepare("UPDATE users SET name = ?, is_active = 1 WHERE id = ?")
+          .run(student.name, existingUser.id);
+        updated += 1;
+        continue;
+      }
+
+      await db
+        .prepare(
+          "INSERT INTO users (nim, name, password, role, is_active) VALUES (?, ?, ?, 'student', 1)",
+        )
+        .run(student.nim, student.name, bcrypt.hashSync(student.nim, 10));
+      inserted += 1;
+    }
+
+    res.status(201).json({
+      message: "Import mahasiswa selesai",
+      summary: {
+        received: students.length,
+        valid: normalizedStudents.length,
+        inserted,
+        updated,
+        skipped,
+        invalid: invalidRows.length,
+      },
+    });
+  } catch (error) {
+    console.error("Import students error:", error);
+    res.status(500).json({ error: "Gagal import mahasiswa" });
+  }
+});
+
+// Delete all student accounts and every uploaded file owned by students.
+app.delete("/api/teacher/students", authenticateTeacher, async (req, res) => {
+  try {
+    const students = await db
+      .prepare("SELECT id FROM users WHERE role = 'student'")
+      .all();
+    const studentIds = students.map((student) => student.id);
+
+    if (studentIds.length === 0) {
+      return res.json({
+        message: "Tidak ada mahasiswa untuk dihapus",
+        summary: { deletedStudents: 0, deletedFiles: 0 },
+      });
+    }
+
+    const taskUploads = await db
+      .prepare(
+        `
+        SELECT tu.file_path
+        FROM task_uploads tu
+        JOIN user_meetings um ON tu.user_meeting_id = um.id
+        JOIN users u ON um.user_id = u.id
+        WHERE u.role = 'student' AND tu.file_path IS NOT NULL
+      `,
+      )
+      .all();
+
+    const attendanceUploads = await db
+      .prepare(
+        `
+        SELECT a.file_path
+        FROM attendances a
+        JOIN users u ON a.user_id = u.id
+        WHERE u.role = 'student' AND a.file_path IS NOT NULL
+      `,
+      )
+      .all();
+
+    const uploadPaths = [
+      ...taskUploads.map((upload) => upload.file_path),
+      ...attendanceUploads.map((upload) => upload.file_path),
+    ];
+
+    await deleteUploadedObjects(uploadPaths);
+
+    await db
+      .prepare(
+        `
+        DELETE qa
+        FROM quiz_answers qa
+        JOIN user_meetings um ON qa.user_meeting_id = um.id
+        JOIN users u ON um.user_id = u.id
+        WHERE u.role = 'student'
+      `,
+      )
+      .run();
+    await db
+      .prepare(
+        `
+        DELETE tu
+        FROM task_uploads tu
+        JOIN user_meetings um ON tu.user_meeting_id = um.id
+        JOIN users u ON um.user_id = u.id
+        WHERE u.role = 'student'
+      `,
+      )
+      .run();
+    await db
+      .prepare(
+        `
+        DELETE sp
+        FROM slide_progress sp
+        JOIN user_meetings um ON sp.user_meeting_id = um.id
+        JOIN users u ON um.user_id = u.id
+        WHERE u.role = 'student'
+      `,
+      )
+      .run();
+    await db
+      .prepare(
+        `
+        DELETE a
+        FROM attendances a
+        JOIN users u ON a.user_id = u.id
+        WHERE u.role = 'student'
+      `,
+      )
+      .run();
+    await db
+      .prepare(
+        `
+        DELETE um
+        FROM user_meetings um
+        JOIN users u ON um.user_id = u.id
+        WHERE u.role = 'student'
+      `,
+      )
+      .run();
+
+    const result = await db
+      .prepare("DELETE FROM users WHERE role = 'student'")
+      .run();
+
+    res.json({
+      message: "Semua mahasiswa dan file upload berhasil dihapus",
+      summary: {
+        deletedStudents: result.changes || studentIds.length,
+        deletedFiles: new Set(uploadPaths.filter(Boolean)).size,
+      },
+    });
+  } catch (error) {
+    console.error("Delete all students error:", error);
+    res.status(500).json({ error: "Gagal menghapus semua mahasiswa" });
+  }
+});
+
+// Get all students with meeting summary (teacher only)
+app.get("/api/teacher/students/summary", authenticateTeacher, async (req, res) => {
+  try {
+    const studentsRaw = await db
       .prepare(
         `
         SELECT 
@@ -868,7 +1490,7 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
       )
       .all();
 
-    const allMeetings = db
+    const allMeetings = await db
       .prepare(
         `
         SELECT user_id, meeting_id, percentage, is_completed 
@@ -877,10 +1499,19 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
       )
       .all();
 
-    const allAttendances = db
+    const allAttendances = await db
       .prepare(
         `
-        SELECT user_id, meeting_id, is_present 
+        SELECT
+          user_id,
+          meeting_id,
+          is_present,
+          file_name,
+          file_size,
+          file_type,
+          file_path,
+          uploaded_at,
+          source
         FROM attendances
         `,
       )
@@ -918,7 +1549,7 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
 
       const completedCount = userMeetings.filter((m) => m.is_completed).length;
       const presentCount = allAttendances.filter(
-        (a) => a.user_id === student.id && a.is_present,
+        (a) => a.user_id === student.id && a.is_present && a.file_path,
       ).length;
       const attendanceScore = (Math.min(presentCount, 20) / 20) * 100 * 0.1;
 
@@ -961,7 +1592,16 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
         },
         attendances: allAttendances
           .filter((a) => a.user_id === student.id)
-          .map((a) => ({ meeting_id: a.meeting_id, is_present: a.is_present })),
+          .map((a) => ({
+            meeting_id: a.meeting_id,
+            is_present: a.is_present && a.file_path ? 1 : 0,
+            file_name: a.file_name,
+            file_size: a.file_size,
+            file_type: a.file_type,
+            file_path: a.file_path,
+            uploaded_at: a.uploaded_at,
+            source: a.source,
+          })),
         meeting_progress: userMeetings.map((m) => ({
           meeting_id: m.meeting_id,
           percentage: m.percentage,
@@ -981,12 +1621,12 @@ app.get("/api/teacher/students/summary", authenticateTeacher, (req, res) => {
 app.get(
   "/api/teacher/students/:studentId/meetings",
   authenticateTeacher,
-  (req, res) => {
+  async (req, res) => {
     const { studentId } = req.params;
 
     try {
-      const meetings = db
-        .prepare(
+      const meetings = await db
+      .prepare(
           `
         SELECT 
           um.*,
@@ -1012,13 +1652,13 @@ app.get(
 app.get(
   "/api/teacher/students/:studentId/meetings/:meetingId",
   authenticateTeacher,
-  (req, res) => {
+  async (req, res) => {
     const { studentId } = req.params;
     const meetingId = parseInt(req.params.meetingId);
 
     try {
-      const meeting = db
-        .prepare(
+      const meeting = await db
+      .prepare(
           `
         SELECT 
           um.*,
@@ -1036,8 +1676,8 @@ app.get(
       }
 
       // Get quiz answers
-      const quizAnswers = db
-        .prepare(
+      const quizAnswers = await db
+      .prepare(
           `
         SELECT * FROM quiz_answers 
         WHERE user_meeting_id = ?
@@ -1047,8 +1687,8 @@ app.get(
         .all(meeting.id);
 
       // Get task uploads
-      const taskUploads = db
-        .prepare(
+      const taskUploads = await db
+      .prepare(
           `
         SELECT * FROM task_uploads 
         WHERE user_meeting_id = ?
@@ -1058,8 +1698,8 @@ app.get(
         .all(meeting.id);
 
       // Get slide progress
-      const slideProgress = db
-        .prepare(
+      const slideProgress = await db
+      .prepare(
           `
         SELECT * FROM slide_progress 
         WHERE user_meeting_id = ?
@@ -1082,8 +1722,8 @@ app.get(
 );
 
 // Get all meetings report across all students (teacher only)
-app.get("/api/teacher/reports/meetings", authenticateTeacher, (req, res) => {
-  const { meetingId } = req.query;
+app.get("/api/teacher/reports/meetings", authenticateTeacher, async (req, res) => {
+  const meetingId = req.query.meetingId || req.query.meetingNumber;
 
   try {
     let query = `
@@ -1113,7 +1753,7 @@ app.get("/api/teacher/reports/meetings", authenticateTeacher, (req, res) => {
 
     query += ` ORDER BY u.name ASC, um.meeting_id ASC`;
 
-    const reports = db.prepare(query).all(...params);
+    const reports = await db.prepare(query).all(...params);
 
     res.json(reports);
   } catch (error) {
@@ -1122,34 +1762,212 @@ app.get("/api/teacher/reports/meetings", authenticateTeacher, (req, res) => {
   }
 });
 
-// Get overall statistics (teacher only)
-app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
+// Get all meeting definitions for management (teacher only)
+app.get("/api/teacher/meeting-definitions", authenticateTeacher, async (req, res) => {
   try {
-    const totalStudents = db
+    const meetings = await db
+      .prepare(
+        `
+        SELECT
+          meeting_key as id,
+          meeting_number as number,
+          title,
+          subtitle,
+          duration,
+          opened_at as openedAt,
+          closed_at as closedAt,
+          attendance_opened_at as attendanceOpenedAt,
+          attendance_closed_at as attendanceClosedAt,
+          is_active as isActive,
+          created_at as createdAt,
+          updated_at as updatedAt
+        FROM meetings
+        ORDER BY meeting_number ASC
+      `,
+      )
+      .all();
+
+    res.json(meetings);
+  } catch (error) {
+    console.error("Get teacher meeting definitions error:", error);
+    res.status(500).json({ error: "Gagal mengambil daftar meeting" });
+  }
+});
+
+// Update a meeting definition (teacher only)
+app.put(
+  "/api/teacher/meeting-definitions/:meetingNumber",
+  authenticateTeacher,
+  async (req, res) => {
+    const meetingNumber = parseInt(req.params.meetingNumber);
+    const {
+      title,
+      subtitle,
+      duration,
+      openedAt,
+      closedAt,
+      attendanceOpenedAt,
+      attendanceClosedAt,
+      isActive,
+    } = req.body;
+
+    try {
+      if (!Number.isInteger(meetingNumber) || meetingNumber <= 0) {
+        return res.status(400).json({ error: "Nomor meeting tidak valid" });
+      }
+
+      if (
+        typeof title !== "string" ||
+        typeof subtitle !== "string" ||
+        !title.trim() ||
+        !subtitle.trim()
+      ) {
+        return res.status(400).json({ error: "Judul dan subtitle harus diisi" });
+      }
+
+      if (!Number.isInteger(duration) || duration <= 0) {
+        return res.status(400).json({ error: "Durasi harus berupa angka positif" });
+      }
+
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ error: "Status aktif harus boolean" });
+      }
+
+      const existing = await db
+        .prepare("SELECT * FROM meetings WHERE meeting_number = ?")
+        .get(meetingNumber);
+
+      if (!existing) {
+        return res.status(404).json({ error: "Meeting tidak ditemukan" });
+      }
+
+      const openedAtValue = toMysqlDateTime(openedAt);
+      const closedAtValue = toMysqlDateTime(closedAt);
+      const attendanceOpenedAtValue = toMysqlDateTime(attendanceOpenedAt);
+      const attendanceClosedAtValue = toMysqlDateTime(attendanceClosedAt);
+
+      if (openedAt && !openedAtValue) {
+        return res.status(400).json({ error: "Format tanggal buka tidak valid" });
+      }
+
+      if (closedAt && !closedAtValue) {
+        return res.status(400).json({ error: "Format tanggal tutup tidak valid" });
+      }
+
+      if (attendanceOpenedAt && !attendanceOpenedAtValue) {
+        return res
+          .status(400)
+          .json({ error: "Format mulai absensi tidak valid" });
+      }
+
+      if (attendanceClosedAt && !attendanceClosedAtValue) {
+        return res
+          .status(400)
+          .json({ error: "Format selesai absensi tidak valid" });
+      }
+
+      if (openedAtValue && closedAtValue && new Date(openedAtValue) > new Date(closedAtValue)) {
+        return res
+          .status(400)
+          .json({ error: "Tanggal buka tidak boleh setelah tanggal tutup" });
+      }
+
+      if (
+        attendanceOpenedAtValue &&
+        attendanceClosedAtValue &&
+        new Date(attendanceOpenedAtValue) > new Date(attendanceClosedAtValue)
+      ) {
+        return res
+          .status(400)
+          .json({ error: "Mulai absensi tidak boleh setelah selesai absensi" });
+      }
+
+      await db
+        .prepare(
+          `
+          UPDATE meetings
+          SET title = ?,
+              subtitle = ?,
+              duration = ?,
+              opened_at = ?,
+              closed_at = ?,
+              attendance_opened_at = ?,
+              attendance_closed_at = ?,
+              is_active = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE meeting_number = ?
+        `,
+        )
+        .run(
+          title.trim(),
+          subtitle.trim(),
+          duration,
+          openedAtValue,
+          closedAtValue,
+          attendanceOpenedAtValue,
+          attendanceClosedAtValue,
+          isActive ? 1 : 0,
+          meetingNumber,
+        );
+
+      const meeting = await db
+        .prepare(
+          `
+          SELECT
+            meeting_key as id,
+            meeting_number as number,
+            title,
+            subtitle,
+            duration,
+            opened_at as openedAt,
+            closed_at as closedAt,
+            attendance_opened_at as attendanceOpenedAt,
+            attendance_closed_at as attendanceClosedAt,
+            is_active as isActive,
+            created_at as createdAt,
+            updated_at as updatedAt
+          FROM meetings
+          WHERE meeting_number = ?
+        `,
+        )
+        .get(meetingNumber);
+
+      res.json({ message: "Meeting berhasil disimpan", meeting });
+    } catch (error) {
+      console.error("Update meeting definition error:", error);
+      res.status(500).json({ error: "Gagal menyimpan meeting" });
+    }
+  },
+);
+
+// Get overall statistics (teacher only)
+app.get("/api/teacher/statistics", authenticateTeacher, async (req, res) => {
+  try {
+    const totalStudentsRow = await db
       .prepare("SELECT COUNT(*) as count FROM users WHERE role = 'student'")
-      .get().count;
+      .get();
 
-    const totalMeetings = db
+    const totalMeetingsRow = await db
       .prepare("SELECT COUNT(DISTINCT meeting_id) as count FROM user_meetings")
-      .get().count;
+      .get();
 
-    const completedMeetings = db
+    const completedMeetingsRow = await db
       .prepare(
         "SELECT COUNT(*) as count FROM user_meetings WHERE is_completed = 1",
       )
-      .get().count;
+      .get();
 
     // Calculate avg final score based on new rules
-    const allStudents = db
+    const allStudents = await db
       .prepare("SELECT id FROM users WHERE role = 'student'")
       .all();
-    const allMeetings = db
+    const allMeetings = await db
       .prepare(
         "SELECT user_id, meeting_id, percentage, is_completed FROM user_meetings",
       )
       .all();
-    const allAttendances = db
-      .prepare("SELECT user_id, meeting_id, is_present FROM attendances")
+    const allAttendances = await db
+      .prepare("SELECT user_id, meeting_id, is_present, file_path FROM attendances")
       .all();
 
     let totalScoreAll = 0;
@@ -1185,7 +2003,7 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
       const score20 = getPercentageForMeeting(20) * 0.3;
 
       const presentCount = allAttendances.filter(
-        (a) => a.user_id === student.id && a.is_present,
+        (a) => a.user_id === student.id && a.is_present && a.file_path,
       ).length;
       const attendanceScore = (Math.min(presentCount, 20) / 20) * 100 * 0.1;
 
@@ -1204,7 +2022,7 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
     const avgScore =
       allStudents.length > 0 ? totalScoreAll / allStudents.length : 0;
 
-    const recentActivity = db
+    const recentActivity = await db
       .prepare(
         `
         SELECT 
@@ -1223,9 +2041,9 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
       .all();
 
     res.json({
-      totalStudents,
-      totalMeetings,
-      completedMeetings,
+      totalStudents: totalStudentsRow.count,
+      totalMeetings: totalMeetingsRow.count,
+      completedMeetings: completedMeetingsRow.count,
       avgScore: Math.round(avgScore * 100) / 100,
       recentActivity,
     });
@@ -1239,7 +2057,7 @@ app.get("/api/teacher/statistics", authenticateTeacher, (req, res) => {
 app.post(
   "/api/teacher/meetings/:userMeetingId/recalculate",
   authenticateTeacher,
-  (req, res) => {
+  async (req, res) => {
     const userMeetingId = parseInt(req.params.userMeetingId);
     const { totalQuestionsActual } = req.body;
 
@@ -1255,8 +2073,8 @@ app.post(
       }
 
       // Get meeting data
-      const meeting = db
-        .prepare(
+      const meeting = await db
+      .prepare(
           `
         SELECT um.*, u.name, u.nim
         FROM user_meetings um
@@ -1271,8 +2089,8 @@ app.post(
       }
 
       // Count correct answers from quiz_answers
-      const answers = db
-        .prepare(
+      const answers = await db
+      .prepare(
           `
         SELECT COUNT(*) as total, SUM(is_correct) as correct 
         FROM quiz_answers 
@@ -1288,7 +2106,7 @@ app.post(
           : 0;
 
       // Update meeting with correct values
-      db.prepare(
+      await db.prepare(
         `
         UPDATE user_meetings 
         SET total_questions = ?,
@@ -1326,11 +2144,13 @@ app.post(
   },
 );
 
-// Update manual attendance for a student (teacher only)
+// Update attendance correction for a student (teacher only).
+// Presence is upload-based: teachers can clear attendance, but cannot mark
+// a student present unless a screenshot proof already exists.
 app.post(
   "/api/teacher/students/:studentId/attendance/:meetingId",
   authenticateTeacher,
-  (req, res) => {
+  async (req, res) => {
     const studentId = parseInt(req.params.studentId);
     const meetingId = parseInt(req.params.meetingId);
     const { is_present } = req.body;
@@ -1340,14 +2160,31 @@ app.post(
         return res.status(400).json({ error: "is_present must be a boolean" });
       }
 
-      db.prepare(
+      const existingAttendance = await db
+        .prepare(
+          `
+          SELECT file_path
+          FROM attendances
+          WHERE user_id = ? AND meeting_id = ?
+        `,
+        )
+        .get(studentId, meetingId);
+
+      if (is_present && !existingAttendance?.file_path) {
+        return res.status(400).json({
+          error: "Mahasiswa harus upload screenshot Zoom terlebih dahulu",
+        });
+      }
+
+      await db.prepare(
         `
         INSERT INTO attendances (user_id, meeting_id, is_present) 
         VALUES (?, ?, ?) 
-        ON CONFLICT(user_id, meeting_id) 
-        DO UPDATE SET is_present = ?, timestamp = CURRENT_TIMESTAMP
+        ON DUPLICATE KEY UPDATE
+          is_present = VALUES(is_present),
+          timestamp = CURRENT_TIMESTAMP
       `,
-      ).run(studentId, meetingId, is_present ? 1 : 0, is_present ? 1 : 0);
+      ).run(studentId, meetingId, is_present ? 1 : 0);
 
       res.json({ message: "Absensi berhasil disimpan" });
     } catch (error) {
@@ -1360,10 +2197,10 @@ app.post(
 // ==================== USER MANAGEMENT ROUTES (TEACHER ONLY) ====================
 
 // Logout all student accounts (invalidate all tokens)
-app.post("/api/teacher/logout-all", authenticateTeacher, (req, res) => {
+app.post("/api/teacher/logout-all", authenticateTeacher, async (req, res) => {
   try {
     const now = getJakartaNow();
-    db.prepare(
+    await db.prepare(
       `UPDATE users SET tokens_invalidated_after = ? WHERE role = 'student'`,
     ).run(now);
 
@@ -1375,9 +2212,9 @@ app.post("/api/teacher/logout-all", authenticateTeacher, (req, res) => {
 });
 
 // Get all users with their active status (teacher only)
-app.get("/api/teacher/users", authenticateTeacher, (req, res) => {
+app.get("/api/teacher/users", authenticateTeacher, async (req, res) => {
   try {
-    const users = db
+    const users = await db
       .prepare(
         `
         SELECT id, nim, name, role, is_active, created_at 
@@ -1398,7 +2235,7 @@ app.get("/api/teacher/users", authenticateTeacher, (req, res) => {
 app.put(
   "/api/teacher/users/:userId/active",
   authenticateTeacher,
-  (req, res) => {
+  async (req, res) => {
     const userId = parseInt(req.params.userId);
     const { is_active } = req.body;
 
@@ -1416,18 +2253,18 @@ app.put(
 
       // When deactivating, also invalidate all existing tokens for that user
       if (!is_active) {
-        db.prepare(
+        await db.prepare(
           `UPDATE users SET is_active = ?, tokens_invalidated_after = ? WHERE id = ?`,
         ).run(0, getJakartaNow(), userId);
       } else {
-        db.prepare(`UPDATE users SET is_active = ? WHERE id = ?`).run(
+        await db.prepare(`UPDATE users SET is_active = ? WHERE id = ?`).run(
           1,
           userId,
         );
       }
 
-      const user = db
-        .prepare(
+      const user = await db
+      .prepare(
           "SELECT id, nim, name, role, is_active FROM users WHERE id = ?",
         )
         .get(userId);

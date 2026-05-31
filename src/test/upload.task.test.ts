@@ -3,7 +3,32 @@ import fs from "fs";
 import path from "path";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+
+vi.mock("minio", () => {
+  const objects = new Map<string, Buffer>();
+
+  class Client {
+    async bucketExists() {
+      return true;
+    }
+
+    async makeBucket() {
+      return undefined;
+    }
+
+    async putObject(bucket: string, key: string, buffer: Buffer) {
+      objects.set(`${bucket}/${key}`, buffer);
+      return { etag: "test-etag" };
+    }
+
+    async removeObject(bucket: string, key: string) {
+      objects.delete(`${bucket}/${key}`);
+    }
+  }
+
+  return { Client };
+});
 
 import app from "../../server.js";
 import db from "../../database.js";
@@ -14,22 +39,22 @@ process.env.JWT_SECRET =
 
 const TEST_NIM = "TESTUPLOAD001";
 const TEST_NAME = "Test Upload User";
-const TEST_MEETING_ID = "TEST_MEETING_UPLOAD";
+const TEST_MEETING_ID = 999;
 let userId: number | null = null;
 let userMeetingId: number | null = null;
 let token: string | null = null;
 let tempFilePath: string | null = null;
 
-beforeAll(() => {
+beforeAll(async () => {
   // Create test user if not exists
-  const existing = db
+  const existing = await db
     .prepare("SELECT * FROM users WHERE nim = ?")
     .get(TEST_NIM);
   if (existing) {
     userId = existing.id;
   } else {
     const hashed = bcrypt.hashSync("password", 10);
-    const result = db
+    const result = await db
       .prepare(
         "INSERT INTO users (nim, name, password, role) VALUES (?, ?, ?, ?)",
       )
@@ -38,14 +63,14 @@ beforeAll(() => {
   }
 
   // Ensure user_meetings row
-  const um = db
+  const um = await db
     .prepare("SELECT * FROM user_meetings WHERE user_id = ? AND meeting_id = ?")
     .get(userId, TEST_MEETING_ID);
 
   if (um) {
     userMeetingId = um.id;
   } else {
-    const result = db
+    const result = await db
       .prepare(
         "INSERT INTO user_meetings (user_id, meeting_id, start_time) VALUES (?, ?, ?)",
       )
@@ -72,23 +97,17 @@ beforeAll(() => {
   fs.writeFileSync(tempFilePath, "This is a test file for upload");
 });
 
-afterAll(() => {
+afterAll(async () => {
   // Cleanup DB records created during tests
   try {
     if (userMeetingId) {
-      db.prepare("DELETE FROM task_uploads WHERE user_meeting_id = ?").run(
+      await db.prepare("DELETE FROM task_uploads WHERE user_meeting_id = ?").run(
         userMeetingId,
       );
-      db.prepare("DELETE FROM user_meetings WHERE id = ?").run(userMeetingId);
+      await db.prepare("DELETE FROM user_meetings WHERE id = ?").run(userMeetingId);
     }
     if (userId) {
-      db.prepare("DELETE FROM users WHERE id = ?").run(userId);
-    }
-
-    // Remove uploaded files directory
-    const uploadDir = path.join(process.cwd(), "storage", TEST_NIM);
-    if (fs.existsSync(uploadDir)) {
-      fs.rmSync(uploadDir, { recursive: true, force: true });
+      await db.prepare("DELETE FROM users WHERE id = ?").run(userId);
     }
 
     // Remove temp file
@@ -119,18 +138,17 @@ describe("Task upload endpoint", () => {
     expect(res.body.file).toHaveProperty("path");
 
     const relativePath = res.body.file.path as string;
-    const savedPath = path.join(process.cwd(), relativePath);
-    expect(fs.existsSync(savedPath)).toBe(true);
+    expect(relativePath).toMatch(new RegExp(`^storage/${TEST_NIM}/test_.*\\.png$`));
 
     // Check DB record exists
-    const um = db
+    const um = await db
       .prepare(
         "SELECT * FROM user_meetings WHERE user_id = ? AND meeting_id = ?",
       )
       .get(userId, TEST_MEETING_ID);
     expect(um).toBeTruthy();
 
-    const upload = db
+    const upload = await db
       .prepare(
         "SELECT * FROM task_uploads WHERE user_meeting_id = ? AND slide_id = ? AND task_index = ?",
       )

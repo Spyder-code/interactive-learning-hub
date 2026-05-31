@@ -1,21 +1,17 @@
 import jwt from "jsonwebtoken";
 import db from "../database.js";
 
-export function authenticateToken(req, res, next) {
+export async function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({ error: "Access token required" });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Invalid or expired token" });
-    }
-
-    // Check if the user's tokens have been invalidated after this token was issued
-    const dbUser = db
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    const dbUser = await db
       .prepare(
         "SELECT is_active, tokens_invalidated_after FROM users WHERE id = ?",
       )
@@ -41,10 +37,12 @@ export function authenticateToken(req, res, next) {
 
     req.user = user;
     next();
-  });
+  } catch (error) {
+    return res.status(403).json({ error: "Invalid or expired token" });
+  }
 }
 
-export function authenticateTeacher(req, res, next) {
+export async function authenticateTeacher(req, res, next) {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
 
@@ -52,10 +50,8 @@ export function authenticateTeacher(req, res, next) {
     return res.status(401).json({ error: "Access token required" });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Invalid or expired token" });
-    }
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
 
     if (user.role !== "teacher") {
       return res
@@ -63,8 +59,7 @@ export function authenticateTeacher(req, res, next) {
         .json({ error: "Access denied. Teacher role required." });
     }
 
-    // Check if the teacher's tokens have been invalidated after this token was issued
-    const dbUser = db
+    const dbUser = await db
       .prepare(
         "SELECT is_active, tokens_invalidated_after FROM users WHERE id = ?",
       )
@@ -72,6 +67,10 @@ export function authenticateTeacher(req, res, next) {
 
     if (!dbUser) {
       return res.status(403).json({ error: "User not found" });
+    }
+
+    if (dbUser.is_active === 0) {
+      return res.status(403).json({ error: "Akun tidak aktif" });
     }
 
     if (dbUser.tokens_invalidated_after) {
@@ -86,5 +85,7 @@ export function authenticateTeacher(req, res, next) {
 
     req.user = user;
     next();
-  });
+  } catch (error) {
+    return res.status(403).json({ error: "Invalid or expired token" });
+  }
 }

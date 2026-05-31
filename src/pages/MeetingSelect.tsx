@@ -1,4 +1,4 @@
-import { meetings } from "@/data/meetings";
+import { meetings, mergeMeetingDefinitions } from "@/data/meetings";
 import { useNavigate } from "react-router-dom";
 import {
   FiMonitor,
@@ -9,12 +9,14 @@ import {
   FiLogOut,
   FiUser,
   FiLock,
-  FiChevronDown,
   FiClipboard,
+  FiUpload,
+  FiEye,
 } from "react-icons/fi";
-import { authAPI, meetingAPI } from "@/services/api";
+import { authAPI, getUploadUrl, meetingAPI } from "@/services/api";
 import { useQuizStore } from "@/stores/quizStore";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 
@@ -28,6 +30,16 @@ interface MeetingStatus {
   completedAt: string;
 }
 
+interface AttendanceStatus {
+  isPresent: boolean;
+  fileName?: string | null;
+  fileSize?: number | null;
+  fileType?: string | null;
+  filePath?: string | null;
+  uploadedAt?: string | null;
+  source?: string | null;
+}
+
 const MeetingSelect = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -36,19 +48,24 @@ const MeetingSelect = () => {
   const [meetingsStatus, setMeetingsStatus] = useState<
     Record<string, MeetingStatus>
   >({});
-  const [attendances, setAttendances] = useState<Record<string, boolean>>({});
+  const [attendances, setAttendances] = useState<Record<string, AttendanceStatus>>({});
+  const [meetingList, setMeetingList] = useState(meetings);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAttendance, setShowAttendance] = useState(false);
+  const [uploadingAttendance, setUploadingAttendance] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [status, att] = await Promise.all([
+        const [definitions, status, att] = await Promise.all([
+          meetingAPI.getMeetingDefinitions(),
           meetingAPI.getAllMeetingsStatus(),
           meetingAPI.getMyAttendances()
         ]);
 
+        setMeetingList(mergeMeetingDefinitions(definitions));
         setMeetingsStatus(status);
         setAttendances(att);
       } catch (error) {
@@ -105,7 +122,7 @@ const MeetingSelect = () => {
 
   // Check if meeting is within time window (opened and not closed)
   const isMeetingOpenByTime = (
-    meeting: (typeof meetings)[0],
+    meeting: (typeof meetingList)[0],
   ): {
     isOpen: boolean;
     reason?: "not-yet-open" | "already-closed";
@@ -151,7 +168,7 @@ const MeetingSelect = () => {
       | "no-access";
     message?: string;
   } => {
-    const meeting = meetings.find((m) => m.number === meetingNumber);
+    const meeting = meetingList.find((m) => m.number === meetingNumber);
     if (!meeting) return { unlocked: false, reason: "no-access" };
 
     // Check time restrictions first
@@ -177,7 +194,7 @@ const MeetingSelect = () => {
     if (meetingNumber === 1) return { unlocked: true };
 
     // Check if previous meeting is completed
-    const previousMeeting = meetings.find(
+    const previousMeeting = meetingList.find(
       (m) => m.number === meetingNumber - 1,
     );
     if (!previousMeeting) return { unlocked: false, reason: "no-access" };
@@ -194,7 +211,7 @@ const MeetingSelect = () => {
     return { unlocked: true };
   };
 
-  const handleMeetingClick = (meeting: (typeof meetings)[0]) => {
+  const handleMeetingClick = (meeting: (typeof meetingList)[0]) => {
     const accessCheck = isMeetingUnlocked(meeting.number);
 
     if (!accessCheck.unlocked) {
@@ -219,6 +236,113 @@ const MeetingSelect = () => {
     }
 
     navigate(`/${meeting.id}`);
+  };
+
+  const getAttendanceCount = () =>
+    Object.values(attendances).filter((attendance) => attendance?.isPresent)
+      .length;
+
+  const formatFileSize = (size?: number | null) => {
+    if (!size) return "";
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  };
+
+  const getAttendanceWindow = (
+    meeting: (typeof meetingList)[0],
+  ): {
+    isOpen: boolean;
+    label: string;
+    openedLabel: string;
+    closedLabel: string;
+    tone: "open" | "waiting" | "closed";
+  } => {
+    const now = new Date();
+    const openedLabel = meeting.attendanceOpenedAt
+      ? formatDate(meeting.attendanceOpenedAt)
+      : "Tidak dibatasi";
+    const closedLabel = meeting.attendanceClosedAt
+      ? formatDate(meeting.attendanceClosedAt)
+      : "Tidak dibatasi";
+
+    if (meeting.attendanceOpenedAt) {
+      const openDate = new Date(meeting.attendanceOpenedAt);
+      if (now < openDate) {
+        return {
+          isOpen: false,
+          label: `Dibuka ${formatDate(meeting.attendanceOpenedAt)}`,
+          openedLabel,
+          closedLabel,
+          tone: "waiting",
+        };
+      }
+    }
+
+    if (meeting.attendanceClosedAt) {
+      const closeDate = new Date(meeting.attendanceClosedAt);
+      if (now > closeDate) {
+        return {
+          isOpen: false,
+          label: `Ditutup ${formatDate(meeting.attendanceClosedAt)}`,
+          openedLabel,
+          closedLabel,
+          tone: "closed",
+        };
+      }
+
+      return {
+        isOpen: true,
+        label: `Terbuka sampai ${formatDate(meeting.attendanceClosedAt)}`,
+        openedLabel,
+        closedLabel,
+        tone: "open",
+      };
+    }
+
+    if (meeting.attendanceOpenedAt) {
+      return {
+        isOpen: true,
+        label: `Dibuka sejak ${formatDate(meeting.attendanceOpenedAt)}`,
+        openedLabel,
+        closedLabel,
+        tone: "open",
+      };
+    }
+
+    return {
+      isOpen: true,
+      label: "Absensi terbuka",
+      openedLabel,
+      closedLabel,
+      tone: "open",
+    };
+  };
+
+  const handleAttendanceUpload = async (meetingNumber: number, file?: File) => {
+    if (!file) return;
+
+    try {
+      setUploadingAttendance(meetingNumber);
+      const result = await meetingAPI.uploadAttendance(meetingNumber, file);
+
+      setAttendances((current) => ({
+        ...current,
+        [meetingNumber]: result.attendance,
+      }));
+
+      toast({
+        title: "Absensi tersimpan",
+        description: `Screenshot Zoom Pertemuan ${meetingNumber} berhasil diupload`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Gagal menyimpan absensi",
+        description: error.message || "Pastikan file berupa gambar dan jadwal absensi masih dibuka.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingAttendance(null);
+    }
   };
 
   return (
@@ -287,7 +411,7 @@ const MeetingSelect = () => {
             <div className="mt-4 sm:mt-0 px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl flex items-center gap-4">
               <div className="flex flex-col">
                 <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Absensi</span>
-                <span className="font-bold text-primary">{Object.values(attendances).filter(Boolean).length} / 20</span>
+                <span className="font-bold text-primary">{getAttendanceCount()} / 20</span>
               </div>
               <div className="w-px h-8 bg-primary/20"></div>
               <div className="flex flex-col">
@@ -315,7 +439,7 @@ const MeetingSelect = () => {
                       (getAvg(17, 18) * 0.10) +
                       (getExact(19) * 0.10) +
                       (getExact(20) * 0.30) +
-                      ((Math.min(Object.values(attendances).filter(Boolean).length, 20) / 20) * 10)
+                      ((Math.min(getAttendanceCount(), 20) / 20) * 10)
                     );
                     return score.toFixed(1);
                   })()}
@@ -325,72 +449,26 @@ const MeetingSelect = () => {
           )}
         </div>
 
-        {/* Attendance Status Panel */}
-        {!isLoading && (
-          <div className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
-            <button
-              onClick={() => setShowAttendance((v) => !v)}
-              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                <FiClipboard size={16} className="text-primary" />
-                <span className="text-sm font-bold text-foreground">Status Absensi</span>
-                <span className={`ml-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                  Object.values(attendances).filter(Boolean).length >= 14
-                    ? "bg-success/15 text-success"
-                    : Object.values(attendances).filter(Boolean).length >= 10
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                    : "bg-destructive/10 text-destructive"
-                }`}>
-                  {Object.values(attendances).filter(Boolean).length}/20 Hadir
-                </span>
-              </div>
-              <FiChevronDown
-                size={16}
-                className={`text-muted-foreground transition-transform duration-200 ${showAttendance ? "rotate-180" : ""}`}
-              />
-            </button>
+        <Tabs defaultValue="meeting" className="space-y-5">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="meeting">
+              <FiLayers className="mr-2" size={15} />
+              Meeting
+            </TabsTrigger>
+            <TabsTrigger value="absensi">
+              <FiClipboard className="mr-2" size={15} />
+              Absensi
+            </TabsTrigger>
+          </TabsList>
 
-            {showAttendance && (
-              <div className="px-5 pb-5 pt-1 border-t border-border">
-                <p className="text-xs text-muted-foreground mb-3 mt-2">
-                  Status kehadiran Anda per pertemuan. Dikelola oleh dosen.
-                </p>
-                <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                  {Array.from({ length: 20 }, (_, i) => i + 1).map((meetingNum) => {
-                    const isPresent = attendances[meetingNum] === true;
-                    return (
-                      <div
-                        key={meetingNum}
-                        className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-colors ${
-                          isPresent
-                            ? "bg-success/10 border-success/30 text-success"
-                            : "bg-muted/30 border-border text-muted-foreground"
-                        }`}
-                        title={isPresent ? `Pertemuan ${meetingNum}: Hadir` : `Pertemuan ${meetingNum}: Tidak Hadir`}
-                      >
-                        <span className="text-xs font-bold leading-tight">P{meetingNum}</span>
-                        {isPresent ? (
-                          <FiCheckCircle size={14} className="mt-1 text-success" />
-                        ) : (
-                          <span className="mt-1 w-3.5 h-3.5 rounded-full border-2 border-muted-foreground/40 block" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+          <TabsContent value="meeting" className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Memuat data pertemuan...
               </div>
-            )}
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Memuat data pertemuan...
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {meetings.map((m) => {
+            ) : (
+              <div className="space-y-4">
+            {meetingList.map((m) => {
               const status = meetingsStatus[m.number];
               const isCompleted = status?.isCompleted || false;
               const accessCheck = isMeetingUnlocked(m.number);
@@ -500,8 +578,183 @@ const MeetingSelect = () => {
                 </button>
               );
             })}
-          </div>
-        )}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="absensi" className="space-y-4">
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                Memuat data absensi...
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border bg-card px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">
+                      Status Absensi
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Kehadiran dihitung dari screenshot Zoom yang berhasil diupload.
+                    </p>
+                  </div>
+                  <span className={`w-fit text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    getAttendanceCount() >= 14
+                      ? "bg-success/15 text-success"
+                      : getAttendanceCount() >= 10
+                        ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                        : "bg-destructive/10 text-destructive"
+                  }`}>
+                    {getAttendanceCount()}/20 Hadir
+                  </span>
+                </div>
+
+                {meetingList.map((meeting) => {
+                  const attendance = attendances[meeting.number];
+                  const isPresent = attendance?.isPresent === true;
+                  const isUploading = uploadingAttendance === meeting.number;
+                  const proofUrl = getUploadUrl(attendance?.filePath);
+                  const windowStatus = getAttendanceWindow(meeting);
+                  const canUpload = windowStatus.isOpen && !isUploading;
+
+                  return (
+                    <div
+                      key={`attendance-${meeting.id}`}
+                      className={`w-full p-5 rounded-2xl bg-card border transition-colors ${
+                        isPresent
+                          ? "border-success/30"
+                          : "border-border"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex items-start gap-4 flex-1 min-w-0">
+                          <span className="text-3xl shrink-0">{meeting.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg font-extrabold text-foreground">
+                                {meeting.title}
+                              </h3>
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                isPresent
+                                  ? "bg-success/10 text-success"
+                                  : "bg-muted text-muted-foreground"
+                              }`}>
+                                {isPresent ? "Hadir" : "Belum Hadir"}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground font-medium">
+                              {meeting.subtitle}
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                              <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                                <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                                  Absensi Dibuka
+                                </p>
+                                <p className="text-xs font-bold text-foreground mt-0.5">
+                                  {windowStatus.openedLabel}
+                                </p>
+                              </div>
+                              <div className="rounded-lg border bg-muted/20 px-3 py-2">
+                                <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+                                  Absensi Sampai
+                                </p>
+                                <p className="text-xs font-bold text-foreground mt-0.5">
+                                  {windowStatus.closedLabel}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                              <span className={`font-semibold ${
+                                windowStatus.tone === "open"
+                                  ? "text-success"
+                                  : windowStatus.tone === "waiting"
+                                    ? "text-amber-600"
+                                    : "text-destructive"
+                              }`}>
+                                {windowStatus.label}
+                              </span>
+                              {attendance?.uploadedAt && (
+                                <span>
+                                  Upload: {formatDate(attendance.uploadedAt)}
+                                </span>
+                              )}
+                              {attendance?.fileSize && (
+                                <span>{formatFileSize(attendance.fileSize)}</span>
+                              )}
+                            </div>
+
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <input
+                                id={`attendance-upload-${meeting.number}`}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={!canUpload}
+                                onChange={(event) => {
+                                  handleAttendanceUpload(
+                                    meeting.number,
+                                    event.target.files?.[0],
+                                  );
+                                  event.target.value = "";
+                                }}
+                              />
+                              <label
+                                htmlFor={`attendance-upload-${meeting.number}`}
+                                className={`inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors ${
+                                  canUpload
+                                    ? "cursor-pointer bg-background hover:border-primary hover:text-primary"
+                                    : "pointer-events-none opacity-50"
+                                }`}
+                              >
+                                <FiUpload size={14} />
+                                {isUploading ? "Mengupload..." : isPresent ? "Ganti Bukti" : "Upload Bukti"}
+                              </label>
+                              {proofUrl && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(proofUrl, "_blank")}
+                                >
+                                  <FiEye className="mr-2" size={14} />
+                                  Lihat Bukti
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="w-full sm:w-40 h-28 rounded-lg border bg-muted/30 overflow-hidden flex items-center justify-center shrink-0">
+                          {proofUrl ? (
+                            <button
+                              type="button"
+                              className="w-full h-full"
+                              onClick={() => window.open(proofUrl, "_blank")}
+                              title={attendance?.fileName || "Bukti absensi"}
+                            >
+                              <img
+                                src={proofUrl}
+                                alt={attendance?.fileName || `Bukti absensi ${meeting.title}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          ) : (
+                            <div className="text-center px-3">
+                              <FiClipboard className="mx-auto text-muted-foreground" size={22} />
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                Belum ada bukti
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

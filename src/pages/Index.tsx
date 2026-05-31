@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { meetings } from "@/data/meetings";
+import { meetings, mergeMeetingDefinitions } from "@/data/meetings";
 import SlideProgress from "@/components/SlideProgress";
 import SlideContent from "@/components/SlideContent";
 import SlideTimer from "@/components/SlideTimer";
@@ -32,7 +32,8 @@ const Index = () => {
   const { meetingId } = useParams<{ meetingId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const meeting = meetings.find((m) => m.id === meetingId) || meetings[0];
+  const [meetingList, setMeetingList] = useState(meetings);
+  const meeting = meetingList.find((m) => m.id === meetingId) || meetingList[0];
   const slides = meeting.slides;
   const user = authAPI.getCurrentUser();
 
@@ -73,6 +74,19 @@ const Index = () => {
   } | null>(null);
   const slide = slides[current];
 
+  useEffect(() => {
+    const loadMeetingDefinitions = async () => {
+      try {
+        const definitions = await meetingAPI.getMeetingDefinitions();
+        setMeetingList(mergeMeetingDefinitions(definitions));
+      } catch (error) {
+        console.error("Failed to load meeting definitions:", error);
+      }
+    };
+
+    loadMeetingDefinitions();
+  }, []);
+
   const handleLogout = () => {
     clearAll(); // Clear store sebelum logout
     authAPI.logout();
@@ -89,7 +103,7 @@ const Index = () => {
       if (!meetingId || isLoading) return;
 
       // Find the meeting number
-      const currentMeeting = meetings.find((m) => m.id === meetingId);
+      const currentMeeting = meetingList.find((m) => m.id === meetingId);
       if (!currentMeeting) return;
 
       // Check time restrictions first
@@ -125,7 +139,7 @@ const Index = () => {
       if (currentMeeting.number === 1) return;
 
       // Check if previous meeting is completed
-      const previousMeeting = meetings.find(
+      const previousMeeting = meetingList.find(
         (m) => m.number === currentMeeting.number - 1,
       );
       if (!previousMeeting) return;
@@ -148,7 +162,7 @@ const Index = () => {
     };
 
     checkMeetingAccess();
-  }, [meetingId, isLoading, navigate, toast]);
+  }, [meetingId, isLoading, navigate, toast, meetingList]);
 
   // Initialize slide 0 sebagai accessible saat pertama kali load
   useEffect(() => {

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import type { ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { authAPI, teacherAPI } from "@/services/api";
+import { authAPI, getUploadUrl, teacherAPI } from "@/services/api";
 import * as XLSX from "xlsx";
 import { meetings, getMeetingId } from "@/data/meetings";
 import {
@@ -57,6 +58,9 @@ import {
   FiUserCheck,
   FiUserX,
   FiSettings,
+  FiCalendar,
+  FiSave,
+  FiTrash2,
 } from "react-icons/fi";
 
 interface User {
@@ -66,6 +70,20 @@ interface User {
   role: string;
   is_active: number;
   created_at: string;
+}
+
+interface AdminMeeting {
+  id: string;
+  number: number;
+  title: string;
+  subtitle: string;
+  duration: number;
+  openedAt?: string | null;
+  closedAt?: string | null;
+  attendanceOpenedAt?: string | null;
+  attendanceClosedAt?: string | null;
+  isActive: number;
+  updatedAt?: string;
 }
 
 interface Student {
@@ -87,7 +105,16 @@ interface Student {
     score20: number;
     attendanceScore: number;
   };
-  attendances?: { meeting_id: number; is_present: boolean }[];
+  attendances?: {
+    meeting_id: number;
+    is_present: boolean | number;
+    file_name?: string | null;
+    file_size?: number | null;
+    file_type?: string | null;
+    file_path?: string | null;
+    uploaded_at?: string | null;
+    source?: string | null;
+  }[];
   meeting_progress?: {
     meeting_id: number;
     percentage: number;
@@ -162,9 +189,11 @@ interface Statistics {
 const TeacherDashboard = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [adminMeetings, setAdminMeetings] = useState<AdminMeeting[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [absensiSearch, setAbsensiSearch] = useState("");
+  const [meetingSearch, setMeetingSearch] = useState("");
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentMeetings, setStudentMeetings] = useState<Meeting[]>([]);
@@ -175,16 +204,19 @@ const TeacherDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingAdminMeetings, setLoadingAdminMeetings] = useState(false);
+  const [savingMeetingNumber, setSavingMeetingNumber] = useState<number | null>(
+    null,
+  );
   const [recalculating, setRecalculating] = useState(false);
   const [selectedFile, setSelectedFile] = useState<TaskUpload | null>(null);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
-  // Track which attendance cell is currently being saved: "studentId-meetingId"
-  const [savingAttendance, setSavingAttendance] = useState<Set<string>>(
-    new Set(),
-  );
   // Track which user is being toggled: userId
   const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
+  const [importingStudents, setImportingStudents] = useState(false);
+  const [deletingStudents, setDeletingStudents] = useState(false);
+  const importStudentsInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -208,6 +240,10 @@ const TeacherDashboard = () => {
       // Load statistics
       const statsData = await teacherAPI.getStatistics();
       setStatistics(statsData);
+
+      // Load meeting definitions for admin management
+      const meetingData = await teacherAPI.getMeetingDefinitions();
+      setAdminMeetings(meetingData);
     } catch (error) {
       console.error("Load data error:", error);
       toast({
@@ -285,6 +321,180 @@ const TeacherDashboard = () => {
       });
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  const parseStudentsFromExcel = async (file: File) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!firstSheet) {
+      return [];
+    }
+
+    const rows = XLSX.utils.sheet_to_json<(string | number)[]>(firstSheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+    });
+
+    const normalizedRows = rows
+      .map((row) => row.map((cell) => String(cell ?? "").trim()))
+      .filter((row) => row.some(Boolean));
+
+    if (normalizedRows.length === 0) {
+      return [];
+    }
+
+    const headerIndex = normalizedRows.findIndex((row) => {
+      const lowered = row.map((cell) => cell.toLowerCase());
+      return (
+        lowered.some((cell) => cell === "nim" || cell.includes("nim")) &&
+        lowered.some(
+          (cell) =>
+            cell === "nama" ||
+            cell === "name" ||
+            cell.includes("nama") ||
+            cell.includes("name"),
+        )
+      );
+    });
+
+    let nimColumn = 0;
+    let nameColumn = 1;
+    let dataRows = normalizedRows;
+
+    if (headerIndex >= 0) {
+      const headers = normalizedRows[headerIndex].map((cell) =>
+        cell.toLowerCase(),
+      );
+      const foundNimColumn = headers.findIndex(
+        (cell) => cell === "nim" || cell.includes("nim"),
+      );
+      const foundNameColumn = headers.findIndex(
+        (cell) =>
+          cell === "nama" ||
+          cell === "name" ||
+          cell.includes("nama") ||
+          cell.includes("name"),
+      );
+
+      nimColumn = foundNimColumn >= 0 ? foundNimColumn : 0;
+      nameColumn = foundNameColumn >= 0 ? foundNameColumn : 1;
+      dataRows = normalizedRows.slice(headerIndex + 1);
+    }
+
+    return dataRows
+      .map((row) => ({
+        nim: String(row[nimColumn] || "").trim(),
+        name: String(row[nameColumn] || "").trim(),
+      }))
+      .filter((student) => student.nim && student.name);
+  };
+
+  const handleImportStudents = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    try {
+      setImportingStudents(true);
+      const importedStudents = await parseStudentsFromExcel(file);
+
+      if (importedStudents.length === 0) {
+        toast({
+          title: "Data kosong",
+          description:
+            "Excel harus berisi kolom NIM dan Nama, atau dua kolom pertama adalah NIM dan Nama.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const response = await teacherAPI.importStudents(importedStudents);
+      const summary = response.summary;
+
+      toast({
+        title: "Import selesai",
+        description: `${summary.inserted} baru, ${summary.updated} diperbarui, ${summary.skipped} dilewati`,
+      });
+
+      await loadData();
+      await loadUsers();
+    } catch (error: any) {
+      console.error("Import students error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal import mahasiswa",
+        variant: "destructive",
+      });
+    } finally {
+      setImportingStudents(false);
+    }
+  };
+
+  const handleDeleteAllStudents = async () => {
+    if (
+      !window.confirm(
+        "Hapus semua mahasiswa? Semua progress, jawaban, absensi, dan file upload mahasiswa akan ikut dihapus permanen.",
+      )
+    ) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Konfirmasi sekali lagi: tindakan ini tidak bisa dibatalkan. Lanjut hapus semua mahasiswa?",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setDeletingStudents(true);
+      const response = await teacherAPI.deleteAllStudents();
+
+      setSelectedStudent(null);
+      setSelectedMeeting(null);
+      setMeetingDetail(null);
+      setStudentMeetings([]);
+
+      toast({
+        title: "Berhasil",
+        description: `${response.summary.deletedStudents} mahasiswa dan ${response.summary.deletedFiles} file upload dihapus`,
+      });
+
+      await loadData();
+      await loadUsers();
+    } catch (error: any) {
+      console.error("Delete all students error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal menghapus semua mahasiswa",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingStudents(false);
+    }
+  };
+
+  const loadAdminMeetings = async () => {
+    try {
+      setLoadingAdminMeetings(true);
+      const meetingData = await teacherAPI.getMeetingDefinitions();
+      setAdminMeetings(meetingData);
+    } catch (error) {
+      console.error("Load admin meetings error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal memuat data meeting",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAdminMeetings(false);
     }
   };
 
@@ -395,6 +605,53 @@ const TeacherDashboard = () => {
       });
     } finally {
       setTogglingUserId(null);
+    }
+  };
+
+  const updateAdminMeetingDraft = (
+    meetingNumber: number,
+    changes: Partial<AdminMeeting>,
+  ) => {
+    setAdminMeetings((current) =>
+      current.map((meeting) =>
+        meeting.number === meetingNumber ? { ...meeting, ...changes } : meeting,
+      ),
+    );
+  };
+
+  const saveAdminMeeting = async (meeting: AdminMeeting) => {
+    try {
+      setSavingMeetingNumber(meeting.number);
+      const response = await teacherAPI.updateMeetingDefinition(meeting.number, {
+        title: meeting.title,
+        subtitle: meeting.subtitle,
+        duration: Number(meeting.duration),
+        openedAt: meeting.openedAt || null,
+        closedAt: meeting.closedAt || null,
+        attendanceOpenedAt: meeting.attendanceOpenedAt || null,
+        attendanceClosedAt: meeting.attendanceClosedAt || null,
+        isActive: meeting.isActive === 1,
+      });
+
+      setAdminMeetings((current) =>
+        current.map((item) =>
+          item.number === meeting.number ? response.meeting : item,
+        ),
+      );
+
+      toast({
+        title: "Berhasil",
+        description: `Pertemuan ${meeting.number} berhasil disimpan`,
+      });
+    } catch (error: any) {
+      console.error("Save meeting error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Gagal menyimpan meeting",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingMeetingNumber(null);
     }
   };
 
@@ -535,7 +792,7 @@ const TeacherDashboard = () => {
     try {
       toast({
         title: "Mendownload...",
-        description: "Sedang mengunduh file database.sqlite",
+        description: "Menyiapkan ekspor database",
       });
       await teacherAPI.downloadDatabase();
       toast({
@@ -595,6 +852,23 @@ const TeacherDashboard = () => {
     });
   };
 
+  const toDateTimeLocal = (dateString?: string | null) => {
+    if (!dateString) return "";
+    const localDateTime = String(dateString).match(
+      /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/,
+    );
+    if (localDateTime) {
+      return `${localDateTime[1]}-${localDateTime[2]}-${localDateTime[3]}T${localDateTime[4]}:${localDateTime[5]}`;
+    }
+
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+      date.getDate(),
+    )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
   const formatDuration = (minutes?: number) => {
     if (!minutes) return "-";
     const hours = Math.floor(minutes / 60);
@@ -622,6 +896,13 @@ const TeacherDashboard = () => {
     (student) =>
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.nim.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const filteredAdminMeetings = adminMeetings.filter(
+    (meeting) =>
+      meeting.title.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+      meeting.subtitle.toLowerCase().includes(meetingSearch.toLowerCase()) ||
+      String(meeting.number).includes(meetingSearch),
   );
 
   return (
@@ -749,6 +1030,10 @@ const TeacherDashboard = () => {
             <TabsTrigger value="activity">
               <FiActivity className="mr-2" />
               Aktivitas Terkini
+            </TabsTrigger>
+            <TabsTrigger value="meetings">
+              <FiCalendar className="mr-2" />
+              Manajemen Meeting
             </TabsTrigger>
             <TabsTrigger value="users">
               <FiSettings className="mr-2" />
@@ -1117,11 +1402,7 @@ const TeacherDashboard = () => {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      // file_path is "storage/nim/filename" - remove storage/ prefix
-                                      const filePathParts = upload.file_path
-                                        .replace(/\\/g, "/")
-                                        .replace(/^storage\//, "");
-                                      const fileUrl = `https://ictapi.zhaf.my.id/uploads/${filePathParts}`;
+                                      const fileUrl = getUploadUrl(upload.file_path);
                                       window.open(fileUrl, "_blank");
                                     }}
                                   >
@@ -1165,73 +1446,52 @@ const TeacherDashboard = () => {
                     <CardContent>
                       <div className="mb-6">
                         <h3 className="text-lg font-semibold mb-3">
-                          Absensi Manual (Kehadiran)
+                          Absensi Upload Screenshot Zoom
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2">
                           {Array.from({ length: 20 }, (_, i) => i + 1).map(
                             (meetingNumber) => {
-                              const isPresent =
-                                selectedStudent.attendances?.some(
-                                  (a) =>
-                                    a.meeting_id === meetingNumber &&
-                                    a.is_present,
-                                );
+                              const attendance = selectedStudent.attendances?.find(
+                                (a) => a.meeting_id === meetingNumber,
+                              );
+                              const isPresent = Boolean(attendance?.is_present);
+                              const fileUrl = getUploadUrl(attendance?.file_path);
 
                               return (
-                                <button
+                                <div
                                   key={`att-${meetingNumber}`}
-                                  onClick={async () => {
-                                    try {
-                                      const nextState = !isPresent;
-                                      // Optimistic local update
-                                      const updatedAttendances =
-                                        selectedStudent.attendances || [];
-                                      const filtered =
-                                        updatedAttendances.filter(
-                                          (a) => a.meeting_id !== meetingNumber,
-                                        );
-                                      filtered.push({
-                                        meeting_id: meetingNumber,
-                                        is_present: nextState,
-                                      });
-                                      setSelectedStudent({
-                                        ...selectedStudent,
-                                        attendances: filtered,
-                                      });
-
-                                      await teacherAPI.updateAttendance(
-                                        selectedStudent.id,
-                                        meetingNumber,
-                                        nextState,
-                                      );
-                                      await loadData();
-                                    } catch (e) {
-                                      toast({
-                                        title: "Gagal",
-                                        description:
-                                          "Gagal memperbarui absensi",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }}
-                                  className={`flex flex-col items-center justify-center p-2 border rounded-md transition-colors ${
+                                  className={`flex flex-col items-center justify-center gap-1 p-2 border rounded-md transition-colors ${
                                     isPresent
-                                      ? "bg-primary/20 border-primary/50 text-primary hover:bg-primary/30"
-                                      : "bg-card hover:bg-muted"
+                                      ? "bg-primary/20 border-primary/50 text-primary"
+                                      : "bg-card text-muted-foreground"
                                   }`}
+                                  title={
+                                    isPresent
+                                      ? attendance?.file_name || "Sudah upload bukti"
+                                      : "Belum upload bukti"
+                                  }
                                 >
                                   <span className="text-xs font-medium">
                                     M {meetingNumber}
                                   </span>
                                   {isPresent ? (
-                                    <FiCheckCircle className="mt-1" size={14} />
+                                    <FiCheckCircle size={14} />
                                   ) : (
                                     <FiCircle
-                                      className="mt-1 text-muted-foreground"
+                                      className="text-muted-foreground"
                                       size={14}
                                     />
                                   )}
-                                </button>
+                                  {fileUrl && (
+                                    <button
+                                      type="button"
+                                      className="text-[10px] underline"
+                                      onClick={() => window.open(fileUrl, "_blank")}
+                                    >
+                                      Bukti
+                                    </button>
+                                  )}
+                                </div>
                               );
                             },
                           )}
@@ -1341,10 +1601,45 @@ const TeacherDashboard = () => {
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle>Daftar Mahasiswa</CardTitle>
-                  <CardDescription>
-                    Klik pada mahasiswa untuk melihat detail progress
-                  </CardDescription>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <CardTitle>Daftar Mahasiswa</CardTitle>
+                      <CardDescription>
+                        Klik pada mahasiswa untuk melihat detail progress
+                      </CardDescription>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        ref={importStudentsInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleImportStudents}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => importStudentsInputRef.current?.click()}
+                        disabled={importingStudents || deletingStudents}
+                      >
+                        <FiUpload className="mr-2 h-4 w-4" />
+                        {importingStudents ? "Import..." : "Import Excel"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        onClick={handleDeleteAllStudents}
+                        disabled={deletingStudents || importingStudents}
+                      >
+                        {deletingStudents ? (
+                          <FiRefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <FiTrash2 className="mr-2 h-4 w-4" />
+                        )}
+                        {deletingStudents ? "Menghapus..." : "Hapus Semua"}
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mb-4 flex items-center gap-2">
@@ -1438,8 +1733,8 @@ const TeacherDashboard = () => {
                   Absensi Mahasiswa
                 </CardTitle>
                 <CardDescription>
-                  Klik tombol pertemuan untuk toggle kehadiran. Data tersimpan
-                  otomatis ke database.
+                  Kehadiran dihitung dari upload screenshot Zoom oleh mahasiswa.
+                  Klik ikon hadir untuk membuka bukti file.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1525,104 +1820,38 @@ const TeacherDashboard = () => {
                               </TableCell>
                               {Array.from({ length: 20 }, (_, i) => i + 1).map(
                                 (meetingNum) => {
-                                  const isPresent =
-                                    student.attendances?.some(
-                                      (a) =>
-                                        a.meeting_id === meetingNum &&
-                                        a.is_present,
-                                    ) ?? false;
-                                  const key = `${student.id}-${meetingNum}`;
-                                  const isSaving = savingAttendance.has(key);
+                                  const attendance = student.attendances?.find(
+                                    (a) => a.meeting_id === meetingNum,
+                                  );
+                                  const isPresent = Boolean(
+                                    attendance?.is_present,
+                                  );
+                                  const fileUrl = getUploadUrl(
+                                    attendance?.file_path,
+                                  );
                                   return (
                                     <TableCell
                                       key={meetingNum}
                                       className="text-center px-1"
                                     >
                                       <button
-                                        disabled={isSaving}
-                                        onClick={async () => {
-                                          const nextState = !isPresent;
-                                          setSavingAttendance((prev) =>
-                                            new Set(prev).add(key),
-                                          );
-                                          // Optimistic update
-                                          setStudents((prev) =>
-                                            prev.map((s) => {
-                                              if (s.id !== student.id) return s;
-                                              const filtered = (
-                                                s.attendances || []
-                                              ).filter(
-                                                (a) =>
-                                                  a.meeting_id !== meetingNum,
-                                              );
-                                              filtered.push({
-                                                meeting_id: meetingNum,
-                                                is_present: nextState,
-                                              });
-                                              return {
-                                                ...s,
-                                                attendances: filtered,
-                                              };
-                                            }),
-                                          );
-                                          try {
-                                            await teacherAPI.updateAttendance(
-                                              student.id,
-                                              meetingNum,
-                                              nextState,
-                                            );
-                                          } catch {
-                                            // Revert on failure
-                                            setStudents((prev) =>
-                                              prev.map((s) => {
-                                                if (s.id !== student.id)
-                                                  return s;
-                                                const filtered = (
-                                                  s.attendances || []
-                                                ).filter(
-                                                  (a) =>
-                                                    a.meeting_id !== meetingNum,
-                                                );
-                                                filtered.push({
-                                                  meeting_id: meetingNum,
-                                                  is_present: isPresent,
-                                                });
-                                                return {
-                                                  ...s,
-                                                  attendances: filtered,
-                                                };
-                                              }),
-                                            );
-                                            toast({
-                                              title: "Gagal",
-                                              description:
-                                                "Gagal memperbarui absensi",
-                                              variant: "destructive",
-                                            });
-                                          } finally {
-                                            setSavingAttendance((prev) => {
-                                              const next = new Set(prev);
-                                              next.delete(key);
-                                              return next;
-                                            });
-                                          }
+                                        type="button"
+                                        disabled={!fileUrl}
+                                        onClick={() => {
+                                          if (fileUrl) window.open(fileUrl, "_blank");
                                         }}
                                         className={`w-8 h-8 rounded-full flex items-center justify-center transition-all text-xs font-bold border ${
-                                          isSaving
-                                            ? "opacity-50 cursor-not-allowed bg-muted border-muted-foreground/30"
-                                            : isPresent
-                                              ? "bg-green-500 border-green-600 text-white hover:bg-green-600 shadow-sm"
-                                              : "bg-background border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                                          isPresent
+                                            ? "bg-green-500 border-green-600 text-white hover:bg-green-600 shadow-sm"
+                                            : "bg-background border-muted-foreground/30 text-muted-foreground"
                                         }`}
                                         title={
                                           isPresent
-                                            ? `Hadir M${meetingNum} — klik untuk absen`
-                                            : `Tidak hadir M${meetingNum} — klik untuk tandai hadir`
+                                            ? attendance?.file_name || `Bukti hadir M${meetingNum}`
+                                            : `Belum upload bukti M${meetingNum}`
                                         }
                                       >
-                                        {isSaving ? (
-                                          <span className="animate-spin inline-block w-3 h-3 border border-current border-t-transparent rounded-full" />
-                                        ) : isPresent ? (
+                                        {isPresent ? (
                                           <FiCheckCircle size={14} />
                                         ) : (
                                           <FiCircle size={14} />
@@ -1777,6 +2006,203 @@ const TeacherDashboard = () => {
                   <p className="text-center text-muted-foreground py-8">
                     Belum ada aktivitas
                   </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="meetings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FiCalendar className="w-5 h-5" />
+                      Manajemen Meeting
+                    </CardTitle>
+                    <CardDescription>
+                      Kelola judul, durasi, jadwal materi, batas waktu absensi,
+                      dan status aktif meeting.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={loadAdminMeetings}
+                    disabled={loadingAdminMeetings}
+                    variant="outline"
+                  >
+                    <FiRefreshCw
+                      className={`mr-2 ${loadingAdminMeetings ? "animate-spin" : ""}`}
+                    />
+                    {loadingAdminMeetings ? "Memuat..." : "Refresh"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 flex items-center gap-2">
+                  <FiSearch className="text-muted-foreground" />
+                  <Input
+                    placeholder="Cari meeting berdasarkan nomor, judul, atau subtitle..."
+                    value={meetingSearch}
+                    onChange={(e) => setMeetingSearch(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
+
+                {loadingAdminMeetings ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Memuat data meeting...
+                    </p>
+                  </div>
+                ) : filteredAdminMeetings.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Tidak ada meeting yang cocok dengan pencarian
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[1500px]">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[90px]">Meeting</TableHead>
+                          <TableHead className="w-[210px]">Judul</TableHead>
+                          <TableHead>Subtitle</TableHead>
+                          <TableHead className="w-[110px]">Durasi</TableHead>
+                          <TableHead className="w-[190px]">Materi Dibuka</TableHead>
+                          <TableHead className="w-[190px]">Materi Ditutup</TableHead>
+                          <TableHead className="w-[190px]">Absensi Mulai</TableHead>
+                          <TableHead className="w-[190px]">Absensi Selesai</TableHead>
+                          <TableHead className="w-[120px]">Status</TableHead>
+                          <TableHead className="w-[110px] text-right">
+                            Aksi
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredAdminMeetings.map((meeting) => {
+                          const isSaving = savingMeetingNumber === meeting.number;
+                          return (
+                            <TableRow key={meeting.id}>
+                              <TableCell className="font-medium">
+                                M {meeting.number}
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={meeting.title}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      title: e.target.value,
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={meeting.subtitle}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      subtitle: e.target.value,
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={meeting.duration}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      duration: Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="datetime-local"
+                                  value={toDateTimeLocal(meeting.openedAt)}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      openedAt: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="datetime-local"
+                                  value={toDateTimeLocal(meeting.closedAt)}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      closedAt: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="datetime-local"
+                                  value={toDateTimeLocal(meeting.attendanceOpenedAt)}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      attendanceOpenedAt: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="datetime-local"
+                                  value={toDateTimeLocal(meeting.attendanceClosedAt)}
+                                  onChange={(e) =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      attendanceClosedAt: e.target.value || null,
+                                    })
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  variant={
+                                    meeting.isActive === 1
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() =>
+                                    updateAdminMeetingDraft(meeting.number, {
+                                      isActive:
+                                        meeting.isActive === 1 ? 0 : 1,
+                                    })
+                                  }
+                                >
+                                  {meeting.isActive === 1 ? "Aktif" : "Nonaktif"}
+                                </Button>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  onClick={() => saveAdminMeeting(meeting)}
+                                  disabled={isSaving}
+                                >
+                                  {isSaving ? (
+                                    <FiRefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <FiSave className="mr-2 h-4 w-4" />
+                                  )}
+                                  Simpan
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1983,11 +2409,7 @@ const TeacherDashboard = () => {
             {selectedFile && selectedStudent && (
               <div className="flex flex-col items-center justify-center">
                 {(() => {
-                  // file_path is "storage/nim/filename" - remove storage/ prefix
-                  const filePathParts = selectedFile.file_path
-                    .replace(/\\/g, "/")
-                    .replace(/^storage\//, "");
-                  const fileUrl = `https://ictapi.zhaf.my.id/uploads/${filePathParts}`;
+                  const fileUrl = getUploadUrl(selectedFile.file_path);
 
                   if (selectedFile.file_type.startsWith("image/")) {
                     return (
@@ -2030,11 +2452,7 @@ const TeacherDashboard = () => {
                         </p>
                         <Button
                           onClick={() => {
-                            // file_path is "storage/nim/filename" - remove storage/ prefix
-                            const filePathParts = selectedFile.file_path
-                              .replace(/\\/g, "/")
-                              .replace(/^storage\//, "");
-                            const fileUrl = `https://ictapi.zhaf.my.id/uploads/${filePathParts}`;
+                            const fileUrl = getUploadUrl(selectedFile.file_path);
                             window.open(fileUrl, "_blank");
                           }}
                         >

@@ -54,6 +54,21 @@ export interface Meeting {
   slides: Slide[];
   openedAt?: string; // ISO date string - meeting dibuka mulai tanggal ini
   closedAt?: string; // ISO date string - meeting ditutup setelah tanggal ini
+  attendanceOpenedAt?: string; // ISO date string - absensi dibuka mulai tanggal ini
+  attendanceClosedAt?: string; // ISO date string - absensi ditutup setelah tanggal ini
+}
+
+export interface MeetingDefinition {
+  id: string;
+  number: number;
+  title: string;
+  subtitle: string;
+  duration: number;
+  openedAt?: string | null;
+  closedAt?: string | null;
+  attendanceOpenedAt?: string | null;
+  attendanceClosedAt?: string | null;
+  isActive?: number | boolean;
 }
 
 // Helper function to convert meeting ID to number
@@ -77,6 +92,36 @@ export const getMeetingNumber = (meetingId: string): number => {
 export const getMeetingId = (meetingNumber: number): string => {
   const meeting = meetings.find((m) => m.number === meetingNumber);
   return meeting?.id || `pertemuan-${meetingNumber}`;
+};
+
+export const mergeMeetingDefinitions = (
+  definitions: MeetingDefinition[],
+): Meeting[] => {
+  if (!definitions.length) return meetings;
+
+  return definitions
+    .filter((definition) => definition.isActive !== 0 && definition.isActive !== false)
+    .map((definition) => {
+      const meeting = meetings.find(
+        (item) => item.number === definition.number || item.id === definition.id,
+      );
+
+      if (!meeting) return null;
+
+      return {
+        ...meeting,
+        id: definition.id || meeting.id,
+        number: definition.number || meeting.number,
+        title: definition.title || meeting.title,
+        subtitle: definition.subtitle || meeting.subtitle,
+        duration: definition.duration || meeting.duration,
+        openedAt: definition.openedAt || undefined,
+        closedAt: definition.closedAt || undefined,
+        attendanceOpenedAt: definition.attendanceOpenedAt || undefined,
+        attendanceClosedAt: definition.attendanceClosedAt || undefined,
+      };
+    })
+    .filter((meeting): meeting is Meeting => meeting !== null);
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
