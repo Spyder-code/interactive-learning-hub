@@ -311,6 +311,7 @@ const corsOptions = {
         "https://ict.local",
         "https://ict.zhaf.my.id",
         "https://ict.mediku.my.id",
+        "https://ict.mediku.cloud",
         "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:8080",
