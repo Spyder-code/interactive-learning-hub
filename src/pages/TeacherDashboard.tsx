@@ -61,6 +61,7 @@ import {
   FiCalendar,
   FiSave,
   FiTrash2,
+  FiFile,
 } from "react-icons/fi";
 
 interface User {
@@ -214,6 +215,8 @@ const TeacherDashboard = () => {
   // Track which user is being toggled: userId
   const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingNilai, setExportingNilai] = useState(false);
   const [importingStudents, setImportingStudents] = useState(false);
   const [deletingStudents, setDeletingStudents] = useState(false);
   const importStudentsInputRef = useRef<HTMLInputElement | null>(null);
@@ -809,6 +812,54 @@ const TeacherDashboard = () => {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      setExportingExcel(true);
+      toast({
+        title: "Mengekspor...",
+        description: "Menyiapkan laporan Excel (JADWAL & DOKUMENTASI)",
+      });
+      await teacherAPI.exportExcelReport();
+      toast({
+        title: "Berhasil!",
+        description: "Laporan Excel berhasil diunduh",
+      });
+    } catch (error) {
+      console.error("Export excel error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengekspor laporan Excel",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  const handleExportNilai = async () => {
+    try {
+      setExportingNilai(true);
+      toast({
+        title: "Mengekspor...",
+        description: "Menyiapkan file nilai (.xls)",
+      });
+      await teacherAPI.exportNilai();
+      toast({
+        title: "Berhasil!",
+        description: "File nilai berhasil diunduh",
+      });
+    } catch (error) {
+      console.error("Export nilai error:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengekspor nilai",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingNilai(false);
+    }
+  };
+
   const handleLogout = () => {
     authAPI.logout();
     navigate("/login");
@@ -921,6 +972,22 @@ const TeacherDashboard = () => {
               </div>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleExportExcel}
+                disabled={exportingExcel}
+              >
+                <FiFile className="mr-2" />
+                {exportingExcel ? "Mengekspor..." : "Export Excel"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleExportNilai}
+                disabled={exportingNilai}
+              >
+                <FiClipboard className="mr-2" />
+                {exportingNilai ? "Mengekspor..." : "Export Nilai"}
+              </Button>
               <Button variant="outline" onClick={handleDownloadDatabase}>
                 <FiDownload className="mr-2" />
                 Download DB

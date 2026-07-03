@@ -525,6 +525,60 @@ export const teacherAPI = {
     document.body.removeChild(a);
   },
 
+  async exportExcelReport() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/export-excel`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengekspor laporan Excel");
+    }
+
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const fileName =
+      disposition.match(/filename="([^"]+)"/)?.[1] || "laporan-ict.xlsx";
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  async exportNilai() {
+    const response = await fetch(
+      `${API_BASE_URL.replace("/api", "")}/api/teacher/reports/export-nilai`,
+      {
+        headers: getAuthHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Gagal mengekspor nilai");
+    }
+
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const fileName =
+      disposition.match(/filename="([^"]+)"/)?.[1] || "nilai-ict.xls";
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
   async updateAttendance(
     studentId: number,
     meetingId: number,

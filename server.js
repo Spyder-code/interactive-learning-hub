@@ -8,6 +8,12 @@ import * as Minio from "minio";
 import path from "path";
 import db from "./database.js";
 import { authenticateToken, authenticateTeacher } from "./middleware/auth.js";
+import {
+  buildTeacherReportWorkbook,
+  buildNilaiXlsBuffer,
+  computeNilaiComponents,
+  TEACHER_REPORT_CONSTANTS,
+} from "./excelReport.js";
 
 dotenv.config();
 
@@ -1248,6 +1254,148 @@ app.get("/api/teacher/database/download", authenticateTeacher, async (req, res) 
   } catch (error) {
     console.error("Download database export error:", error);
     res.status(500).json({ error: "Gagal mengekspor database" });
+  }
+});
+
+// Export laporan Excel (JADWAL + DOKUMENTASI) - teacher only
+app.get("/api/teacher/reports/export-excel", authenticateTeacher, async (req, res) => {
+  try {
+    const meetings = await db
+      .prepare(
+        `
+        SELECT
+          meeting_number,
+          DATE_FORMAT(opened_at, '%Y-%m-%d %H:%i:%s') AS opened_at
+        FROM meetings
+        ORDER BY meeting_number ASC
+        LIMIT 20
+      `,
+      )
+      .all();
+
+    // Foto dokumentasi: absensi milik user NIM khusus dokumentasi
+    const attendanceRows = await db
+      .prepare(
+        `
+        SELECT m.meeting_number, a.file_path, a.file_type
+        FROM attendances a
+        JOIN users u ON u.id = a.user_id
+        JOIN meetings m ON m.id = a.meeting_id
+        WHERE u.nim = ?
+          AND a.file_path IS NOT NULL
+          AND m.meeting_number BETWEEN 1 AND 20
+      `,
+      )
+      .all(TEACHER_REPORT_CONSTANTS.DOKUMENTASI_NIM);
+
+    const extensionFromType = (fileType, filePath) => {
+      const source = `${fileType || ""} ${filePath || ""}`.toLowerCase();
+      if (source.includes("png")) return "png";
+      if (source.includes("gif")) return "gif";
+      if (source.includes("jpg") || source.includes("jpeg")) return "jpeg";
+      return null; // format tidak didukung Excel
+    };
+
+    const images = [];
+    for (const row of attendanceRows) {
+      const objectKey = filePathToObjectKey(row.file_path);
+      const extension = extensionFromType(row.file_type, row.file_path);
+      if (!objectKey || !extension) continue;
+
+      try {
+        await ensureUploadBucket();
+        const stream = await minioClient.getObject(MINIO_BUCKET, objectKey);
+        const chunks = [];
+        for await (const chunk of stream) chunks.push(chunk);
+        images.push({
+          meetingNumber: row.meeting_number,
+          buffer: Buffer.concat(chunks),
+          extension,
+        });
+      } catch (error) {
+        console.warn(
+          `Skip dokumentasi image ${objectKey}: ${error.message}`,
+        );
+      }
+    }
+
+    const workbook = buildTeacherReportWorkbook({ meetings, images });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${TEACHER_REPORT_CONSTANTS.NAMA_KELAS}.xlsx"`,
+    );
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Export excel report error:", error);
+    res.status(500).json({ error: "Gagal mengekspor laporan Excel" });
+  }
+});
+
+// Export nilai .xls sesuai template_nilai.xls (teacher only)
+app.get("/api/teacher/reports/export-nilai", authenticateTeacher, async (req, res) => {
+  try {
+    const students = await db
+      .prepare(
+        `
+        SELECT id, nim, name
+        FROM users
+        WHERE role = 'student' AND nim != ?
+        ORDER BY nim ASC
+      `,
+      )
+      .all(TEACHER_REPORT_CONSTANTS.DOKUMENTASI_NIM);
+
+    const allMeetings = await db
+      .prepare(
+        `
+        SELECT user_id, meeting_id, percentage, is_completed
+        FROM user_meetings
+      `,
+      )
+      .all();
+
+    const allAttendances = await db
+      .prepare(
+        `
+        SELECT user_id
+        FROM attendances
+        WHERE is_present = 1 AND file_path IS NOT NULL
+      `,
+      )
+      .all();
+
+    const rows = students.map((student) => {
+      const userMeetings = allMeetings.filter(
+        (m) => m.user_id === student.id,
+      );
+      const presentCount = allAttendances.filter(
+        (a) => a.user_id === student.id,
+      ).length;
+
+      return {
+        nim: student.nim,
+        name: student.name,
+        nilai: computeNilaiComponents(userMeetings, presentCount),
+      };
+    });
+
+    const buffer = buildNilaiXlsBuffer(rows);
+
+    res.setHeader("Content-Type", "application/vnd.ms-excel");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="nilai-${TEACHER_REPORT_CONSTANTS.NAMA_KELAS}.xls"`,
+    );
+    res.send(buffer);
+  } catch (error) {
+    console.error("Export nilai error:", error);
+    res.status(500).json({ error: "Gagal mengekspor nilai" });
   }
 });
 
