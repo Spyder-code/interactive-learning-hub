@@ -17,6 +17,7 @@ services:
       - MINIO_PORT=9000
       - MINIO_USE_SSL=false
       - MINIO_BUCKET=${ICT_MINIO_BUCKET:-ict-uploads}
+      - TZ=Asia/Jakarta
     expose:
       - "3002"
     restart: unless-stopped

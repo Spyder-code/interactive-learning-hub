@@ -5,6 +5,11 @@ import { authAPI, getUploadUrl, teacherAPI } from "@/services/api";
 import * as XLSX from "xlsx";
 import { meetings, getMeetingId } from "@/data/meetings";
 import {
+  formatJakartaDate,
+  toJakartaDateTimeLocal,
+  getJakartaNow,
+} from "@/lib/timezone";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -893,31 +898,11 @@ const TeacherDashboard = () => {
   };
 
   const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleString("id-ID", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return formatJakartaDate(dateString);
   };
 
   const toDateTimeLocal = (dateString?: string | null) => {
-    if (!dateString) return "";
-    const localDateTime = String(dateString).match(
-      /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/,
-    );
-    if (localDateTime) {
-      return `${localDateTime[1]}-${localDateTime[2]}-${localDateTime[3]}T${localDateTime[4]}:${localDateTime[5]}`;
-    }
-
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return "";
-    const pad = (value: number) => String(value).padStart(2, "0");
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-      date.getDate(),
-    )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    return toJakartaDateTimeLocal(dateString);
   };
 
   const formatDuration = (minutes?: number) => {

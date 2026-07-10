@@ -666,14 +666,14 @@ app.post(
           .json({ error: "Pertemuan tidak ditemukan atau tidak aktif" });
       }
 
-      const now = new Date();
-      if (meeting.attendance_opened_at && now < new Date(meeting.attendance_opened_at)) {
+      const nowJakarta = new Date(getJakartaNow());
+      if (meeting.attendance_opened_at && nowJakarta < new Date(meeting.attendance_opened_at + "+07:00")) {
         return res
           .status(400)
           .json({ error: "Absensi belum dibuka untuk pertemuan ini" });
       }
 
-      if (meeting.attendance_closed_at && now > new Date(meeting.attendance_closed_at)) {
+      if (meeting.attendance_closed_at && nowJakarta > new Date(meeting.attendance_closed_at + "+07:00")) {
         return res
           .status(400)
           .json({ error: "Absensi sudah ditutup untuk pertemuan ini" });
@@ -1156,8 +1156,8 @@ app.post("/api/meetings/:meetingId/complete", authenticateToken, async (req, res
       const nowUtc = Date.now();
       durationMinutes = Math.round((nowUtc - startUtc) / 1000 / 60);
     } else {
-      const startTime = new Date(userMeeting.start_time);
-      const endTime = new Date();
+      const startTime = new Date(userMeeting.start_time + "+07:00");
+      const endTime = new Date(getJakartaNow());
       durationMinutes = Math.round((endTime - startTime) / 1000 / 60);
     }
 

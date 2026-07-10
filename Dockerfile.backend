@@ -12,6 +12,7 @@ RUN npm install
 
 # Copy application files
 COPY server.js ./
+COPY excelReport.js ./
 COPY database.js ./
 COPY middleware ./middleware/
 COPY src ./src/

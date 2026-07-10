@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
+import {
+  formatJakartaDate,
+  checkTimeWindow,
+} from "@/lib/timezone";
 
 interface MeetingStatus {
   isCompleted: boolean;
@@ -108,19 +112,10 @@ const MeetingSelect = () => {
     navigate("/login");
   };
 
-  // Helper function untuk format tanggal
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  // Helper function untuk format tanggal (Asia/Jakarta)
+  const formatDate = formatJakartaDate;
 
-  // Check if meeting is within time window (opened and not closed)
+  // Check if meeting is within time window (opened and not closed) — Asia/Jakarta
   const isMeetingOpenByTime = (
     meeting: (typeof meetingList)[0],
   ): {
@@ -129,31 +124,7 @@ const MeetingSelect = () => {
     openDate?: string;
     closeDate?: string;
   } => {
-    const now = new Date();
-
-    if (meeting.openedAt) {
-      const openDate = new Date(meeting.openedAt);
-      if (now < openDate) {
-        return {
-          isOpen: false,
-          reason: "not-yet-open",
-          openDate: meeting.openedAt,
-        };
-      }
-    }
-
-    if (meeting.closedAt) {
-      const closeDate = new Date(meeting.closedAt);
-      if (now > closeDate) {
-        return {
-          isOpen: false,
-          reason: "already-closed",
-          closeDate: meeting.closedAt,
-        };
-      }
-    }
-
-    return { isOpen: true };
+    return checkTimeWindow(meeting.openedAt, meeting.closedAt);
   };
 
   // Check if a meeting is unlocked (can be accessed)
@@ -257,7 +228,10 @@ const MeetingSelect = () => {
     closedLabel: string;
     tone: "open" | "waiting" | "closed";
   } => {
-    const now = new Date();
+    const windowCheck = checkTimeWindow(
+      meeting.attendanceOpenedAt,
+      meeting.attendanceClosedAt,
+    );
     const openedLabel = meeting.attendanceOpenedAt
       ? formatDate(meeting.attendanceOpenedAt)
       : "Tidak dibatasi";
@@ -265,9 +239,8 @@ const MeetingSelect = () => {
       ? formatDate(meeting.attendanceClosedAt)
       : "Tidak dibatasi";
 
-    if (meeting.attendanceOpenedAt) {
-      const openDate = new Date(meeting.attendanceOpenedAt);
-      if (now < openDate) {
+    if (!windowCheck.isOpen) {
+      if (windowCheck.reason === "not-yet-open") {
         return {
           isOpen: false,
           label: `Dibuka ${formatDate(meeting.attendanceOpenedAt)}`,
@@ -276,11 +249,7 @@ const MeetingSelect = () => {
           tone: "waiting",
         };
       }
-    }
-
-    if (meeting.attendanceClosedAt) {
-      const closeDate = new Date(meeting.attendanceClosedAt);
-      if (now > closeDate) {
+      if (windowCheck.reason === "already-closed") {
         return {
           isOpen: false,
           label: `Ditutup ${formatDate(meeting.attendanceClosedAt)}`,
@@ -289,7 +258,9 @@ const MeetingSelect = () => {
           tone: "closed",
         };
       }
+    }
 
+    if (meeting.attendanceClosedAt) {
       return {
         isOpen: true,
         label: `Terbuka sampai ${formatDate(meeting.attendanceClosedAt)}`,
